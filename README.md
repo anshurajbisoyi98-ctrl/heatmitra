@@ -58,6 +58,8 @@ Deploy: `Dockerfile` and `render.yaml` are included (single process, `PORT` env 
 20. **Background alerts:** in Chrome (or the installed app), tap **🔔 Turn on alerts**. A supervisor can send a test alert through `POST /api/demo/notify/<workerId>`.
 21. **Personal limits:** answer **🥵 Very hard** a few times at low heat, and the worker's plan becomes stricter ("1 °C more cautious, learned from your check-ins").
 
+22. **Break check:** when Ravi's **Rest break now** card appears, tap **📍 Scan the rest-station QR** (or type **4271**, Rest cabin B) to confirm the break, and tap **🥤 +1 cup** to log water. The supervisor's **Break check** card shows the crew score. **Audit** a station (untick anything wrong), and **🖨 QR posters** prints the station posters.
+
 The research behind these features is in `docs/RESEARCH.md`.
 
 ## Layout

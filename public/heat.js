@@ -162,6 +162,20 @@
     return { kind: 'new', day: run, of: 5, cap: Math.min(100, 20 * run), acclimatised: false, awayDays };
   }
 
+  // Break check (water-rest-shade compliance). Adelante (Glaser 2020; Hansson 2025): the fall in kidney injury
+  // tracked how well rest, water and shade were actually delivered. Rest confirmed at a station counts fully,
+  // self-reported rest half; weights rest 50%, water 30%, station audits 20%. Below 80 is flagged.
+  function complianceScore(c) {
+    const pct = (n, d) => (d > 0 ? Math.min(100, Math.round((n / d) * 100)) : null);
+    const rest = c.restDue > 0 ? Math.min(100, Math.round(((c.restVerified + 0.5 * Math.max(0, c.restTaken - c.restVerified)) / c.restDue) * 100)) : null;
+    const water = pct(c.cups, c.cupsDue);
+    const audit = pct(c.auditsOk, c.auditsDue);
+    const parts = [[rest, 0.5], [water, 0.3], [audit, 0.2]].filter(([v]) => v != null);
+    const w = parts.reduce((s, [, k]) => s + k, 0);
+    const score = w ? Math.round(parts.reduce((s, [v, k]) => s + v * k, 0) / w) : null;
+    return { score, rest, water, audit, flag: score != null && score < 80 };
+  }
+
   // Personal limits that can only get stricter. One parameter per worker (the intercept of a logistic model of
   // "struggled" vs margin to the limit), updated online from that worker's check-ins and wearable; the shift in the
   // intercept, converted to °C, lowers their limit. Prior: 20% chance of struggling exactly at the limit.
@@ -226,7 +240,7 @@
   const psiBand = (p) => (p < 5 ? 'low' : p < 7 ? 'moderate' : p < 9 ? 'high' : 'veryhigh');
 
   return {
-    coreTempStep, psi, psiBand, RULES, airAssess, acclimPlan, personalUpdate, personalOffset,
+    coreTempStep, psi, psiBand, RULES, airAssess, acclimPlan, personalUpdate, personalOffset, complianceScore,
     WORKLOAD, CLOTHING, BANDS, CHECKIN_MIN, RED_FLAGS, SYMPTOMS, ACCLIMATISED_DAYS,
     wetBulb, wbgt, limit, workFraction, inMiddayBan, assess, assessDay, nextRise, bestWindow,
   };

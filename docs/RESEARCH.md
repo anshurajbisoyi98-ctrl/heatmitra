@@ -80,8 +80,11 @@ A short, time-boxed literature scan, done on the challenge day. Google Scholar b
 - **Digital programme with outcomes, TEMP cluster RCT (Ding et al. 2025, *Environ Health Perspect*, 528 workers)**: an app with a morning risk score and alerts, plus cooling kit: heat illness 1.80% against 4.82%. The adjusted odds ratio was significant at one follow-up only. https://doi.org/10.1289/EHP14172
 - **Personalised models**: ML heat-strain models reach high accuracy on small samples (e.g. 19 workers in Saudi Arabia; 67 workers without wearables, F1 0.79), but none is validated per worker. So HeatMitra's personalisation can only tighten limits.
 
+### 12. Break check: proof that rest, water and shade happened (built)
+- **Adelante (Glaser 2020, *Occup Environ Med*; Hansson 2025, 1,044 workers over four harvests)**: kidney injury fell from 21% to 1% (incidence ratio per harvest 0.33), and clinical acute kidney injury fell from 20 to 8 per 1,000 worker-months. The gains tracked how well the programme was put into practice: crews where it was carried out poorly did not improve. https://pubmed.ncbi.nlm.nih.gov/32404530/ · https://doi.org/10.1136/oemed-2025-110128
+- **In HeatMitra:** QR check-in at the rest station, a water counter, Adelante-style station audits every 2 hours, and a crew-level score.
+
 ## Found, not built yet (roadmap)
-- **Proof that breaks, water and shade happened:** check-ins at the shade station by QR code or beacon, supervisor field audits, crew compliance scores. **Adelante (Glaser 2020; Hansson 2025, 1,044 workers)**: kidney injury fell from 21% to 1%, and the gains tracked how well the programme was put into practice. https://pubmed.ncbi.nlm.nih.gov/32404530/ · https://doi.org/10.1136/oemed-2025-110128
 - **Off-shift recovery** (hot housing, short sleep): 29% of 55 workers reached a higher core temperature off work than at work (Krisher 2025); about 5 h of sleep in rooms around 30 °C (Lucas 2025). https://pubmed.ncbi.nlm.nih.gov/40193146/
 - **Kidney screening** for workers with high cumulative heat exposure, with occupational-health partners.
 - **Heat-triggered procedures with an inspector-readable log**: California's standard was associated with 15–27% fewer injury claims on hot days (WCRI 2025; not peer-reviewed).

@@ -146,3 +146,6 @@ table.list td, table.list th { padding: 7px 6px; border-bottom: 1px solid var(--
 .cfts-clock.late, .cfts-line.late { color: var(--red); }
 select { max-width: 100%; }
 #sv-head .row { min-width: 0; }
+.poster { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; border: 2px dashed var(--line); border-radius: 14px; padding: 14px; margin: 12px 0; page-break-inside: avoid; }
+.poster .qr { flex: none; width: 150px; height: 150px; }
+.poster > div:last-child { flex: 1; min-width: 180px; }

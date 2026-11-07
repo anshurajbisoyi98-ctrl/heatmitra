@@ -110,6 +110,18 @@ test('personal limits only ever tighten', () => {
   assert.ok(Heat.assess({ ...o, personal: 2 }).limit < Heat.assess(o).limit);
 });
 
+test('break-check compliance score', () => {
+  const full = Heat.complianceScore({ restDue: 10, restTaken: 10, restVerified: 10, cupsDue: 30, cups: 30, auditsDue: 2, auditsOk: 2 });
+  assert.strictEqual(full.score, 100);
+  assert.strictEqual(full.flag, false);
+  const selfOnly = Heat.complianceScore({ restDue: 10, restTaken: 10, restVerified: 0, cupsDue: 0, cups: 0, auditsDue: 0, auditsOk: 0 });
+  assert.strictEqual(selfOnly.rest, 50, 'self-reported rest counts half');
+  assert.strictEqual(selfOnly.water, null);
+  const poor = Heat.complianceScore({ restDue: 10, restTaken: 4, restVerified: 2, cupsDue: 30, cups: 10, auditsDue: 2, auditsOk: 0 });
+  assert.ok(poor.flag && poor.score < 80, `poor delivery is flagged (got ${poor.score})`);
+  assert.strictEqual(Heat.complianceScore({ restDue: 0, restTaken: 0, restVerified: 0, cupsDue: 0, cups: 0, auditsDue: 0, auditsOk: 0 }).score, null);
+});
+
 test('advance warning finds the next rise', () => {
   const plan = ['green', 'green', 'yellow', 'red'].map((band, i) => ({ band, time: `2025-07-10T0${i + 6}:00` }));
   assert.deepStrictEqual(Heat.nextRise(plan, 0), { time: '2025-07-10T08:00', band: 'yellow', hoursAhead: 2 });

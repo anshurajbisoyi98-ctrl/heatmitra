@@ -70,7 +70,8 @@
     if (ob) ob.onclick = logout;
   }
 
-  function closeModal() { overlay.hidden = true; overlay.innerHTML = ''; W.modal = null; }
+  function closeModal() {
+    if (typeof stopCamera === 'function') stopCamera(); overlay.hidden = true; overlay.innerHTML = ''; W.modal = null; }
   function modal(kind, html) { W.modal = kind; overlay.innerHTML = html; overlay.hidden = false; }
 
   // ---------------- login ----------------
@@ -120,6 +121,51 @@
     local.del('hm_queue');
   }
 
+  // Break check: scan the station QR in the app (BarcodeDetector), type the code, or open the QR link from the camera app.
+  const qs = new URLSearchParams(location.search).get('s');
+  if (qs) { local.set('hm_station', qs); history.replaceState(null, '', location.pathname); }
+  async function verifyStation(code) {
+    const out = $('#scanOut');
+    try {
+      const r = await api('/api/rest/verify', { method: 'POST', body: { code } });
+      const msg = r.verified ? t('verified', { station: r.station }) : t('visitOnly', { station: r.station });
+      if (out) { out.textContent = msg; out.style.color = r.verified ? 'var(--green)' : ''; } else showNote(msg);
+      say(msg);
+      stopCamera();
+      setTimeout(() => { if (W.modal === 'scan') closeModal(); pollWorker(); }, 1800);
+    } catch (e) { if (out) { out.textContent = t('badCode'); out.style.color = 'var(--red)'; } }
+  }
+  function showNote(msg) { modal('note', `<div class="modal" dir="${dir()}"><p style="font-size:18px">${esc(msg)}</p><button class="btn" data-w="close">${t('close')}</button></div>`); }
+  let camStream = null;
+  function stopCamera() { if (camStream) { camStream.getTracks().forEach((x) => x.stop()); camStream = null; } }
+  async function openScan() {
+    modal('scan', `<div class="modal" dir="${dir()}"><h1>📍 ${t('scanStation')}</h1>
+      <video id="scanVideo" playsinline muted style="width:100%;border-radius:12px;background:#111;display:none"></video>
+      <label class="field"><span>${t('stationCode')}</span><input id="scanCode" inputmode="numeric" maxlength="8" style="font-size:22px;letter-spacing:4px" /></label>
+      <p id="scanOut" style="font-size:17px"></p>
+      <div class="row"><button class="btn primary" data-w="scanSend">${t('send')}</button><button class="btn" data-w="close">${t('close')}</button></div></div>`);
+    if (!('BarcodeDetector' in window) || !navigator.mediaDevices) return;
+    try {
+      const det = new BarcodeDetector({ formats: ['qr_code'] });
+      camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      const v = $('#scanVideo');
+      if (!v) return stopCamera();
+      v.srcObject = camStream; v.style.display = 'block'; await v.play();
+      const loop = async () => {
+        if (!camStream || W.modal !== 'scan') return stopCamera();
+        const codes = await det.detect(v).catch(() => []);
+        if (codes.length) {
+          const raw = codes[0].rawValue;
+          let code = raw;
+          try { code = new URL(raw).searchParams.get('s') || raw; } catch {}
+          return verifyStation(code);
+        }
+        requestAnimationFrame(loop);
+      };
+      loop();
+    } catch (e) { stopCamera(); }
+  }
+
   async function pollWorker() {
     try {
       await flushQueue();
@@ -127,6 +173,8 @@
       W.me = me; W.offline = false;
       W.offset = me.serverTime ? me.serverTime - Date.now() : 0;
       if (me.shift) local.set('hm_plan', { plan: me.plan, site: me.site, shift: me.shift, consent: me.consent, savedAt: Date.now() });
+      const pending = local.get('hm_station', null);
+      if (me.shift && pending) { local.del('hm_station'); verifyStation(pending); }
     } catch (e) {
       if (e.http) return;
       W.offline = true; // network down: fall back to the last plan this phone saved
@@ -206,7 +254,8 @@
         if (navigator.vibrate) navigator.vibrate([300, 150, 300]);
       }
       return `<div class="card rest-now"><div class="row" style="justify-content:space-between"><b>⏸ ${t('restNow')}</b><span class="timer" id="restCd" dir="ltr"></span></div>
-        ${r.acked ? `<div><b>${t('resting')}</b></div>` : `<button class="btn big" data-w="rest" style="margin-top:8px">🌴 ${t('restBtn')}</button>`}</div>`;
+        ${r.acked ? `<div><b>${t('resting')}</b></div>` : `<button class="btn big" data-w="rest" style="margin-top:8px">🌴 ${t('restBtn')}</button>`}
+        ${r.verified ? `<div class="small" style="color:var(--green)"><b>📍 ✓</b></div>` : `<button class="btn" data-w="scan" style="width:100%;margin-top:8px">📍 ${t('scanStation')}</button>`}</div>`;
     }
     return `<div class="card row" style="justify-content:space-between"><span>⏸ ${t('nextRest')}</span><span class="timer" id="restCd" dir="ltr"></span></div>`;
   }
@@ -262,7 +311,9 @@
         <div class="box"><div class="num">${c.restMin}</div>${t('rest')} (${t('min')})</div></div></div>
       ${restHtml(me)}
       ${wearHtml()}
-      <div class="row" style="margin-bottom:12px"><button class="btn" data-w="hyd" style="flex:1">💧 ${t('hyd')}</button></div>
+      <div class="row" style="margin-bottom:12px"><button class="btn" data-w="hyd" style="flex:1">💧 ${t('hyd')}</button>
+        <button class="btn" data-w="cup" style="flex:1">🥤 ${t('cup')}</button></div>
+      ${me.water ? `<p class="small muted" style="margin-top:-6px">${t('cups', { n: me.water.cups })}${me.water.due ? ` / ${me.water.due}` : ''}</p>` : ''}
       ${me.rise ? `<div class="notice rise">${t('rise', { time: me.rise.time.slice(11), band: t(`b_${me.rise.band}`) })}</div>` : ''}
       ${hazardHtml(c, me)}
       ${acclimHtml(me)}
@@ -461,7 +512,7 @@
         <div class="card" style="grid-column:1/-1" id="sv-map"></div>
         <div class="card" id="sv-crew"></div><div class="card" id="sv-alerts"></div>
         <div class="card" id="sv-sched"></div><div class="card" id="sv-logi"></div>
-        <div class="card" id="sv-ready"></div><div class="card" id="sv-sms"></div>
+        <div class="card" id="sv-breaks"></div><div class="card" id="sv-ready"></div><div class="card" id="sv-sms"></div>
         <div class="card" style="grid-column:1/-1" id="sv-metrics"></div>
         <div class="card" style="grid-column:1/-1" id="sv-cal"></div>
         <div class="card" id="sv-audit"></div></div>`;
@@ -499,6 +550,60 @@
     drawLogi();
     drawOutlook();
     loadHeatmap();
+  }
+
+  // ---------------- break check: proof that rest, water and shade happened ----------------
+  // Adelante (Glaser 2020; Hansson 2025): kidney injury fell from 21% to 1%, and the gains tracked how well
+  // rest, water and shade were actually delivered. So HeatMitra checks delivery, not just the plan.
+  const AUDIT_LABEL = { shade: 'Shade covers everyone resting at once', near: 'Within 50 m of the work', water: 'Cool drinking water available', electrolytes: 'Electrolytes available', space: 'Not crowded; seating available' };
+  async function loadBreaks() {
+    try { V.breaks = await api(`/api/breakcheck?site=${V.site}`); } catch { return; }
+    drawBreaks();
+  }
+  function bar(label, v) {
+    const c = v == null ? '#bbb' : v >= 80 ? 'var(--green)' : v >= 60 ? 'var(--orange)' : 'var(--red)';
+    return `<div class="small" style="margin:6px 0 2px">${label} <b>${v == null ? '–' : `${v}%`}</b></div><div class="psi"><span style="width:${v || 0}%;background:${c}"></span></div>`;
+  }
+  function drawBreaks() {
+    const el = $('#sv-breaks');
+    const b = V.breaks;
+    if (!el || !b) return;
+    const col = b.score == null ? 'var(--muted)' : b.score >= 80 ? 'var(--green)' : b.score >= 60 ? 'var(--orange)' : 'var(--red)';
+    const ago = (at) => { const x = Math.round((Date.now() - at) / 1000); return x < 60 ? `${x}s ago` : `${Math.round(x / 60)}m ago`; };
+    el.innerHTML = `<div class="row" style="justify-content:space-between"><h2 style="margin:0">Break check: rest, water, shade</h2><button class="btn sm" data-c="posters">🖨 QR posters</button></div>
+      <div class="row" style="gap:14px;margin:8px 0"><div style="font-size:40px;font-weight:800;color:${col}">${b.score ?? '–'}</div>
+        <div class="small muted">Crew score out of 100. ${b.flag ? '<b style="color:var(--red)">Below 80: rest, water or shade is not being delivered as planned.</b>' : 'Whole crew only, never per worker.'}</div></div>
+      ${bar('Rest breaks taken (confirmed at a station counts fully)', b.rest)}${bar('Water drunk vs due', b.water)}${bar('Stations audited and passing', b.audit)}
+      <table class="list" style="margin-top:8px">${b.stations.map((st) => `<tr><td><b>${esc(st.name)}</b><br><span class="small muted">code ${esc(b.codes[st.id] || '')}</span></td>
+        <td class="small">${st.lastAt ? `${st.ok ? '✅' : '⚠️'} ${ago(st.lastAt)}${st.fresh ? '' : ' · <b style="color:var(--red)">overdue</b>'}${st.items && !st.ok ? `<br>${Object.entries(st.items).filter(([, v]) => !v).map(([k]) => esc(AUDIT_LABEL[k])).join('; ')}` : ''}` : '<b style="color:var(--red)">not audited</b>'}</td>
+        <td><button class="btn sm" data-c="audit" data-st="${st.id}">Audit</button></td></tr>`).join('')}</table>
+      <p class="muted small">Workers scan the station QR when a rest break starts. Adelante: kidney injury fell from 21% to 1% where rest, water and shade were really delivered (Glaser 2020; Hansson 2025).</p>`;
+  }
+  function openAudit(stId) {
+    const st = V.breaks.stations.find((x) => x.id === stId);
+    modal('audit', `<div class="modal"><h1>Audit: ${esc(st.name)}</h1>
+      ${V.breaks.auditItems.map((k) => `<label class="check"><input type="checkbox" data-audit="${k}" checked /><span>${esc(AUDIT_LABEL[k])}</span></label>`).join('')}
+      <div class="row"><button class="btn primary" data-c="auditSave" data-st="${stId}">Save audit</button><button class="btn" data-w="close">Cancel</button></div>
+      <p class="muted small">Untick anything that is not right now. Audits count for 2 hours.</p></div>`);
+  }
+  async function saveAudit(stId) {
+    const items = Object.fromEntries([...overlay.querySelectorAll('[data-audit]')].map((x) => [x.dataset.audit, x.checked]));
+    V.breaks = { ...V.breaks, ...(await api('/api/station/audit', { method: 'POST', body: { siteId: V.site, stationId: stId, items } })) };
+    closeModal();
+    drawBreaks();
+  }
+  function openPosters() {
+    const b = V.breaks;
+    const lines = [I18N.en.scanStation, I18N.hi.scanStation, I18N.ar.scanStation, I18N.ur.scanStation];
+    modal('posters', `<div class="modal brief"><div class="row noprint" style="justify-content:space-between"><b>Rest-station QR posters</b>
+        <span class="row"><button class="btn sm" data-c="brPrint">🖨 Print</button><button class="btn sm" data-w="close">✕</button></span></div>
+      ${b.stations.map((st) => `<div class="poster"><div class="qr" data-qr="${location.origin}/?s=${b.codes[st.id]}"></div>
+        <div><h2 style="margin:0 0 6px">${esc(st.name)}</h2><div style="font-size:30px;font-weight:800;letter-spacing:6px">${esc(b.codes[st.id])}</div>
+          ${lines.map((l) => `<div>${esc(l)}</div>`).join('')}<div class="muted small">HeatMitra · scan when your rest break starts</div></div></div>`).join('')}</div>`);
+    overlay.querySelectorAll('[data-qr]').forEach((d) => {
+      if (window.QRCode) new QRCode(d, { text: d.dataset.qr, width: 150, height: 150, correctLevel: QRCode.CorrectLevel.M });
+      else d.textContent = d.dataset.qr;
+    });
   }
 
   // ---------------- site readiness and cooling ----------------
@@ -585,6 +690,8 @@
       rows.push([`${WORK_LABEL[wl]}: hours normal / caution / work-rest / STOP (05:00–19:59)`, `${c.green} / ${c.yellow} / ${c.orange} / ${c.red}`]);
     }
     rows.push(
+      ...(V.breaks ? [['Break-check score (rest 50%, water 30%, station audits 20%)', V.breaks.score ?? '–'], ['Rest breaks taken (confirmed at a station counts fully, self-reported half), %', V.breaks.rest ?? '–'],
+        ['Water drunk vs due (3 cups per hour in the heat), %', V.breaks.water ?? '–'], ['Rest stations with a passed audit in the last 2 h, %', V.breaks.audit ?? '–']] : []),
       ['Site readiness today', (() => { const r = readyItems(s); const n = READY.filter(([k]) => r[k]).length; return r._done ? `${n}/${READY.length} ready${READY.filter(([k, , crit]) => crit && !r[k]).length ? ' (critical items missing)' : ''}` : 'not checked'; })()],
       ['New or returning workers on a ramp-up', sup(m.newOrReturning)], ['Workers on stricter personal limits', sup(m.personalisedWorkers)],
       ['Workers on shift now', sup(V.crew ? V.crew.crew.length : null)], ['Alerts opened', sup(m.alertsOpened)],
@@ -771,7 +878,7 @@
       const [crew, alerts, audit] = await Promise.all([api(`/api/crew?site=${V.site}`), api('/api/alerts'), api('/api/audit')]);
       V.crew = crew; V.alerts = alerts; V.audit = audit;
     } catch { return; }
-    if (S.user.role === 'supervisor') { drawCrew(); drawAlerts('#sv-alerts', 'supervisor'); drawMetrics(); loadSms(); }
+    if (S.user.role === 'supervisor') { drawCrew(); drawAlerts('#sv-alerts', 'supervisor'); drawMetrics(); loadSms(); loadBreaks(); }
     else drawAlerts('#md-alerts', 'medic');
     drawAudit();
   }
@@ -860,7 +967,8 @@
         <div><b>${m.newOrReturning ?? 0}</b>new or returning workers on a ramp-up</div>
         <div><b>${m.personalisedWorkers ?? 0}</b>workers on stricter personal limits</div>
         <div><b>${m.pushSubscribed ?? 0}</b>phones with background alerts</div>
-        <div><b>${k(m.medianTimeToCoolingSec != null ? mmss(m.medianTimeToCoolingSec * 1000) : null)}</b>median time from emergency to cooling</div></div>
+        <div><b>${k(m.medianTimeToCoolingSec != null ? mmss(m.medianTimeToCoolingSec * 1000) : null)}</b>median time from emergency to cooling</div>
+        <div><b>${k(m.breakScore)}</b>break-check score (rest, water, shade)</div></div>
         ${m.outcomes && Object.values(m.outcomes).some(Boolean) ? `<p class="small">Cases closed by the first-aider: ${Object.entries(m.outcomes).filter(([, n]) => n).map(([key, n]) => `${OUTCOME_LABEL[key]} <b>${n}</b>`).join(' · ')}</p>` : ''}` : ''}
       ${V.bt ? `<h2 style="margin-top:14px">Back-test: ${esc(V.bt.site)}, ${esc(V.bt.period)}</h2>
         <div class="kpis"><div><b>${V.bt.pod}%</b>danger hours warned (hit rate)</div><div><b>${V.bt.far}%</b>false-alarm ratio</div>
@@ -1089,6 +1197,12 @@
       if (w === 'unwell') return openSymptoms();
       if (w === 'close') return closeModal();
       if (w === 'hyd') return openHydration();
+      if (w === 'scan') return openScan();
+      if (w === 'scanSend') return verifyStation($('#scanCode').value);
+      if (w === 'cup') { try { const r = await api('/api/water', { method: 'POST' }); if (W.me && W.me.water) W.me.water.cups = r.cups; } catch {} return drawWorker(); }
+      if (c0 === 'audit') return openAudit(b.dataset.st);
+      if (c0 === 'auditSave') return saveAudit(b.dataset.st);
+      if (c0 === 'posters') return openPosters();
       if (b.dataset.hyd) return pickHydration(Number(b.dataset.hyd));
       if (w === 'wearDemo') return startDemoWear();
       if (w === 'wearBle') return connectWear();

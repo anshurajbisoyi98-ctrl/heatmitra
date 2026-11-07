@@ -8,7 +8,19 @@
       "tz": "Asia/Dubai",
       "middayBan": "UAE",
       "emergency": "998",
-      "coolSpot": "Rest cabin B, next to gate 2"
+      "coolSpot": "Rest cabin B, next to gate 2",
+      "stations": [
+        {
+          "id": "B2",
+          "name": "Rest cabin B (gate 2)",
+          "code": "4271"
+        },
+        {
+          "id": "T1",
+          "name": "Shade tent 1 (north slab)",
+          "code": "8830"
+        }
+      ]
     },
     {
       "id": "jebelali",
@@ -18,7 +30,14 @@
       "tz": "Asia/Dubai",
       "middayBan": "UAE",
       "emergency": "998",
-      "coolSpot": "Cool room, warehouse 3 entrance"
+      "coolSpot": "Cool room, warehouse 3 entrance",
+      "stations": [
+        {
+          "id": "W3",
+          "name": "Cool room, warehouse 3",
+          "code": "5512"
+        }
+      ]
     },
     {
       "id": "lusail",
@@ -28,7 +47,14 @@
       "tz": "Asia/Qatar",
       "middayBan": "QAT",
       "emergency": "999",
-      "coolSpot": "Shaded rest tent, north gate"
+      "coolSpot": "Shaded rest tent, north gate",
+      "stations": [
+        {
+          "id": "N1",
+          "name": "Shaded rest tent, north gate",
+          "code": "6624"
+        }
+      ]
     },
     {
       "id": "okhla",
@@ -38,7 +64,14 @@
       "tz": "Asia/Kolkata",
       "middayBan": false,
       "emergency": "112",
-      "coolSpot": "Canteen block, ground floor"
+      "coolSpot": "Canteen block, ground floor",
+      "stations": [
+        {
+          "id": "C1",
+          "name": "Canteen block",
+          "code": "3197"
+        }
+      ]
     }
   ],
   "defaultReplay": {

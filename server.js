@@ -53,7 +53,27 @@ const consent = new Map(); // workerId -> { symptoms: bool }
 const alerts = [];
 const checkins = [];
 const audit = [];
-const restTotals = { due: 0, taken: 0 }; // from shifts that have ended
+const restTotals = { due: 0, taken: 0, verified: 0, cups: 0, cupsDue: 0 }; // from shifts that have ended
+// Break check: station audits by the supervisor (Adelante's structured checklist).
+const AUDIT_ITEMS = ['shade', 'near', 'water', 'electrolytes', 'space'];
+const AUDIT_EVERY_MIN = 120; // an audit counts for 2 (scaled) hours
+const CUPS_PER_HOUR = 3; // NIOSH: 1 cup every 15-20 min in the heat
+function stationAudit(site, st) {
+  const a = (site.audits || {})[st.id];
+  const fresh = a && now() - a.at < AUDIT_EVERY_MIN * T.checkinScale * 1000;
+  return { id: st.id, name: st.name, lastAt: a ? a.at : null, by: a ? a.by : null, items: a ? a.items : null, fresh: Boolean(fresh), ok: Boolean(fresh && AUDIT_ITEMS.every((k) => a.items[k])) };
+}
+function breakCheck(site) {
+  const live = [...shifts.values()].filter((x) => x.siteId === site.id);
+  const sum = (f) => live.reduce((t, x) => t + (f(x) || 0), 0);
+  const stations = (site.stations || []).map((st) => stationAudit(site, st));
+  const c = Heat.complianceScore({
+    restDue: restTotals.due + sum((x) => x.restsDue), restTaken: restTotals.taken + sum((x) => x.restsTaken), restVerified: restTotals.verified + sum((x) => x.restsVerified),
+    cups: restTotals.cups + sum((x) => x.cups), cupsDue: Math.floor(restTotals.cupsDue + sum((x) => x.cupsDue)),
+    auditsDue: stations.length, auditsOk: stations.filter((x) => x.ok).length,
+  });
+  return { ...c, stations };
+}
 const OUTCOMES = { cramps: 'heat cramps', exhaustion: 'heat exhaustion', stroke: 'suspected heat stroke', notheat: 'not heat-related', falsealarm: 'false alarm, worker fine' };
 
 // Work/rest cycle for this hour: work first, then rest, repeating every (scaled) hour.
@@ -199,7 +219,10 @@ function sendSms(workerId, text) {
 
 function endShift(workerId, by) {
   const ended = shifts.get(workerId);
-  if (ended) { restTotals.due += ended.restsDue; restTotals.taken += ended.restsTaken; }
+  if (ended) {
+    restTotals.due += ended.restsDue; restTotals.taken += ended.restsTaken; restTotals.verified += ended.restsVerified || 0;
+    restTotals.cups += ended.cups || 0; restTotals.cupsDue += ended.cupsDue || 0;
+  }
   shifts.delete(workerId);
   const a = openAlertFor(workerId);
   if (a && a.stage !== 'medic') resolve(a, by, 'shift ended');
@@ -309,6 +332,12 @@ async function sweep() {
       }
     }
     // Tell the worker's phone when risk rises (only rises: fewer, more meaningful alerts).
+    // Water due in the heat (any band above green); simulated workers drink most of it.
+    if (sh.band !== 'green') {
+      const before = Math.floor(sh.cupsDue || 0);
+      sh.cupsDue = (sh.cupsDue || 0) + (dtMin * CUPS_PER_HOUR) / 60;
+      if (sh.simulated && !sh.silent && Math.floor(sh.cupsDue) > before && Math.random() < 0.8) sh.cups = (sh.cups || 0) + 1;
+    }
     if (!sh.simulated && prevBand && Heat.BANDS.indexOf(sh.band) > Heat.BANDS.indexOf(prevBand)) {
       notify(sh.workerId, `${tr(L, `b_${sh.band}`)}. ${tr(L, `a_${sh.band}`)}`, 'band', sh.band === 'red');
     }
@@ -323,7 +352,10 @@ async function sweep() {
     if (sh.workMin < 60 && (t - sh.startedAt) % cyc >= sh.workMin * T.checkinScale * 1000 && sh.restDueCycle !== ci) {
       sh.restDueCycle = ci;
       sh.restsDue++;
-      if (sh.simulated && !sh.silent && Math.random() < 0.85) { sh.restAckCycle = ci; sh.restsTaken++; }
+      if (sh.simulated && !sh.silent && Math.random() < 0.85) {
+        sh.restAckCycle = ci; sh.restsTaken++;
+        if (Math.random() < 0.75) { sh.verifiedCycle = ci; sh.restsVerified = (sh.restsVerified || 0) + 1; }
+      }
       if (!sh.simulated) notify(sh.workerId, `${tr(L, 'restNow')}. ${tr(L, 'rest')}.`, 'rest');
     }
     if (!sh.checkinMin) continue;
@@ -407,6 +439,7 @@ function metrics() {
     newOrReturning: [...shifts.values()].filter((s) => s.acc && s.acc.kind !== 'acclimatised').length,
     pushSubscribed: [...pushSubs.values()].filter((l) => l.length).length,
     noticesSent,
+    breakScore: (() => { const site = [...shifts.values()][0] ? sites[[...shifts.values()][0].siteId] : null; return site ? breakCheck(site).score : null; })(),
     restAdherence: (() => {
       const live = [...shifts.values()];
       const due = restTotals.due + live.reduce((s, x) => s + x.restsDue, 0);
@@ -458,7 +491,8 @@ async function api(req, res, url) {
   const m = req.method;
   const u = who(req);
 
-  if (m === 'GET' && p === '/api/config') return send(res, 200, { demo: DEMO, timing: T, sites: Object.values(sites) });
+  // Station codes are printed on posters at the site; they are not given out in the public config.
+  if (m === 'GET' && p === '/api/config') return send(res, 200, { demo: DEMO, timing: T, sites: Object.values(sites).map((x) => ({ ...x, stations: (x.stations || []).map(({ id, name }) => ({ id, name })) })) });
   if (m === 'GET' && p === '/api/users') {
     if (!DEMO) return send(res, 404, { error: 'demo only' });
     return send(res, 200, seed.users.map(({ id, role, name, lang, channel, phone }) => ({ id, role, name, lang, channel: channel || 'app', phone })));
@@ -520,7 +554,8 @@ async function api(req, res, url) {
       buddy: u.buddy ? { name: users[u.buddy].name } : null,
       buddyTask: (() => { const ba = u.buddy && openAlertFor(u.buddy); return ba && ba.stage === 'buddy' ? { id: ba.id, name: users[u.buddy].name } : null; })(),
       alert: a ? { id: a.id, stage: a.stage, reason: a.reason, severity: a.severity } : null,
-      rest: restInfo(sh),
+      rest: { ...restInfo(sh), verified: sh.verifiedCycle === Math.floor((now() - sh.startedAt) / (60 * T.checkinScale * 1000)) },
+      water: { cups: sh.cups || 0, due: Math.floor(sh.cupsDue || 0) },
       acclim: { ...sh.acc, heatMin: Math.round(sh.heatMin || 0), capMin: Math.round((SHIFT_MIN * (sh.acc ? sh.acc.cap : 100)) / 100) },
       personal: { offset: Heat.personalOffset(users[u.id].personal), n: users[u.id].personal ? users[u.id].personal.n : 0 },
       cooling: { spot: v.site.coolSpot || null, vests: Boolean(readyToday(v.site).vests) },
@@ -549,6 +584,53 @@ async function api(req, res, url) {
     return send(res, 200, recordCheckin(sh, b.status === 'unwell' ? 'unwell' : 'ok', b.symptoms, u.name, ex));
   }
   // Worker confirms they are taking the rest break the plan calls for.
+  // Break check: the worker scans the QR (or types the code) at a rest station.
+  if (p === '/api/rest/verify' && m === 'POST') {
+    need(u, 'worker');
+    const sh = shifts.get(u.id);
+    if (!sh) return send(res, 409, { error: 'no active shift' });
+    const b = await body(req);
+    const code = String(b.code || '').replace(/\D/g, '').slice(0, 8);
+    const st = (sites[sh.siteId].stations || []).find((x) => x.code === code);
+    if (!st) return send(res, 404, { error: 'not a rest station on this site' });
+    sh.lastHeartbeat = now();
+    const ci = Math.floor((now() - sh.startedAt) / (60 * T.checkinScale * 1000));
+    const r = restInfo(sh);
+    if (r.phase !== 'rest') return send(res, 200, { verified: false, station: st.name });
+    if (sh.restAckCycle !== ci) {
+      if (sh.restDueCycle !== ci) { sh.restDueCycle = ci; sh.restsDue++; }
+      sh.restAckCycle = ci; sh.restsTaken++;
+    }
+    if (sh.verifiedCycle !== ci) { sh.verifiedCycle = ci; sh.restsVerified = (sh.restsVerified || 0) + 1; }
+    return send(res, 200, { verified: true, station: st.name });
+  }
+  if (p === '/api/water' && m === 'POST') {
+    need(u, 'worker');
+    const sh = shifts.get(u.id);
+    if (!sh) return send(res, 409, { error: 'no active shift' });
+    sh.cups = Math.min(60, (sh.cups || 0) + 1);
+    sh.lastHeartbeat = now();
+    return send(res, 200, { cups: sh.cups });
+  }
+  // Supervisor: break-check score, station audits and poster codes.
+  if (p === '/api/breakcheck' && m === 'GET') {
+    need(u, 'supervisor');
+    const site = sites[url.searchParams.get('site') || u.siteId];
+    if (!site) return send(res, 404, { error: 'no such site' });
+    return send(res, 200, { ...breakCheck(site), codes: Object.fromEntries((site.stations || []).map((x) => [x.id, x.code])), auditItems: AUDIT_ITEMS, auditEveryMin: AUDIT_EVERY_MIN });
+  }
+  if (p === '/api/station/audit' && m === 'POST') {
+    need(u, 'supervisor');
+    const b = await body(req);
+    const site = sites[b.siteId];
+    const st = site && (site.stations || []).find((x) => x.id === b.stationId);
+    if (!st) return send(res, 404, { error: 'no such station' });
+    const items = Object.fromEntries(AUDIT_ITEMS.map((k) => [k, Boolean(b.items && b.items[k])]));
+    site.audits = { ...(site.audits || {}), [st.id]: { at: now(), by: u.name, items } };
+    const fails = AUDIT_ITEMS.filter((k) => !items[k]);
+    log(u.name, 'station_audit', `${site.id}/${st.name}: ${fails.length ? `problems: ${fails.join(', ')}` : 'all OK'}`);
+    return send(res, 200, breakCheck(site));
+  }
   if (p === '/api/rest' && m === 'POST') {
     need(u, 'worker');
     const sh = shifts.get(u.id);
