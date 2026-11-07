@@ -85,23 +85,36 @@
     return md >= r.from && md <= r.to && h * 60 < toMin(r.end) && (h + 1) * 60 > toMin(r.start);
   }
 
+  // Dust (hourly PM10, µg/m³) against US EPA PM10 AQI breakpoints (24-h values used as hourly guidance):
+  // < 155 good/moderate · 155–254 unhealthy for sensitive groups · 255–424 unhealthy to very unhealthy · ≥ 425 hazardous.
+  function airAssess(pm10, uv) {
+    const dust = pm10 == null ? null : pm10 < 155 ? 'green' : pm10 < 255 ? 'yellow' : pm10 < 425 ? 'orange' : 'red';
+    return { pm10: pm10 == null ? null : Math.round(pm10), dust, uv: uv == null ? null : Math.round(uv * 10) / 10, uvHigh: uv != null && uv >= 8 };
+  }
+
   function assess(o) {
-    const acclimatised = (o.daysOnSite || 0) >= ACCLIMATISED_DAYS;
+    const acclimatised = o.acclimatised != null ? Boolean(o.acclimatised) : (o.daysOnSite || 0) >= ACCLIMATISED_DAYS;
     const m = WORKLOAD[o.workload] || WORKLOAD.moderate;
     const base = wbgt(o.t, o.rh, o.sw, o.wind) + (o.calib || 0); // calib: on-site sensor offset
     const eff = base + (CLOTHING[o.clothing] || 0);
-    const lim = limit(m, acclimatised);
+    const personal = Math.max(0, o.personal || 0); // learned, tighten-only: lowers this worker's limit
+    const lim = limit(m, acclimatised) - personal;
     const margin = eff - lim;
-    const f = workFraction(eff, m, acclimatised);
+    const f = workFraction(eff + personal, m, acclimatised);
     let band = margin <= -2 ? 'green' : margin <= 0 ? 'yellow' : f >= 0.25 ? 'orange' : 'red';
     const rule = resolveRule(o.middayBan);
     const ban = Boolean(rule && o.time && inMiddayBan(o.time, rule));
     const ruleStop = Boolean(rule && rule.wbgtStop && base >= rule.wbgtStop);
-    if (ban || ruleStop) band = 'red';
+    const air = airAssess(o.pm10, o.uv);
+    const dustStop = air.dust === 'red';
+    if (ban || ruleStop || dustStop) band = 'red';
     let workMin = band === 'orange' ? Math.floor((f * 60) / 5) * 5 : band === 'red' ? 0 : 60;
     const days = o.daysOnSite || 0;
-    const exposureCap = acclimatised ? 100 : Math.min(100, 20 * Math.max(1, days));
+    const exposureCap = o.exposureCap != null ? o.exposureCap : acclimatised ? 100 : Math.min(100, 20 * Math.max(1, days));
     return {
+      personal,
+      air,
+      dustStop,
       time: o.time || null,
       t: o.t,
       rh: o.rh,
@@ -127,7 +140,41 @@
   }
 
   function assessDay(hourly, profile, middayBan) {
-    return hourly.map((r) => assess({ ...profile, t: r.t, rh: r.rh, sw: r.sw, wind: r.wind, time: r.time, middayBan }));
+    return hourly.map((r) => assess({ ...profile, t: r.t, rh: r.rh, sw: r.sw, wind: r.wind, pm10: r.pm10, uv: r.uv, time: r.time, middayBan }));
+  }
+
+  // Acclimatisation from the dates a worker was in the heat (NIOSH 2016):
+  // new workers 20% of the usual exposure on day 1, +20% a day; full acclimatisation takes about 7 days.
+  // After 7+ days away: 50%, 60%, 80%, 100% over 4 days. After 6+ weeks away: start again as new.
+  function acclimPlan(dates, today) {
+    const DAY = 864e5;
+    const t = Date.parse(`${today}T00:00:00Z`);
+    const ds = [...new Set(dates || [])].map((d) => Date.parse(`${d}T00:00:00Z`)).filter((x) => x <= t).sort((a, b) => b - a);
+    if (!ds.length || ds[0] !== t) ds.unshift(t); // today counts
+    let i = 1;
+    while (i < ds.length && (ds[i - 1] - ds[i]) / DAY < 7) i++;
+    const run = i;
+    const awayDays = i < ds.length ? Math.round((ds[i - 1] - ds[i]) / DAY) : null;
+    const returning = awayDays != null && awayDays < 42;
+    if (returning && run <= 4) return { kind: 'returning', day: run, of: 4, cap: [50, 60, 80, 100][run - 1], acclimatised: run >= 4, awayDays };
+    if (returning || run >= 7) return { kind: 'acclimatised', day: run, of: null, cap: 100, acclimatised: true, awayDays };
+    if (run >= 5) return { kind: 'new', day: run, of: 7, cap: 100, acclimatised: false, awayDays };
+    return { kind: 'new', day: run, of: 5, cap: Math.min(100, 20 * run), acclimatised: false, awayDays };
+  }
+
+  // Personal limits that can only get stricter. One parameter per worker (the intercept of a logistic model of
+  // "struggled" vs margin to the limit), updated online from that worker's check-ins and wearable; the shift in the
+  // intercept, converted to °C, lowers their limit. Prior: 20% chance of struggling exactly at the limit.
+  const PERSONAL = { a0: Math.log(0.2 / 0.8), b: 1.0, lr: 0.5, l2: 0.1, max: 3 };
+  function personalUpdate(state, margin, y) {
+    const s = state || { a: PERSONAL.a0, n: 0, struggles: 0 };
+    const p = 1 / (1 + Math.exp(-(s.a + PERSONAL.b * margin)));
+    const a = s.a + PERSONAL.lr * (y - p) - PERSONAL.lr * PERSONAL.l2 * (s.a - PERSONAL.a0);
+    return { a, n: s.n + 1, struggles: s.struggles + (y >= 0.99 ? 1 : 0) };
+  }
+  function personalOffset(state) {
+    if (!state) return 0;
+    return Math.min(PERSONAL.max, Math.max(0, Math.round(((state.a - PERSONAL.a0) / PERSONAL.b) * 10) / 10));
   }
 
   // First later hour where the band gets worse than it is now: the advance warning.
@@ -179,7 +226,7 @@
   const psiBand = (p) => (p < 5 ? 'low' : p < 7 ? 'moderate' : p < 9 ? 'high' : 'veryhigh');
 
   return {
-    coreTempStep, psi, psiBand, RULES,
+    coreTempStep, psi, psiBand, RULES, airAssess, acclimPlan, personalUpdate, personalOffset,
     WORKLOAD, CLOTHING, BANDS, CHECKIN_MIN, RED_FLAGS, SYMPTOMS, ACCLIMATISED_DAYS,
     wetBulb, wbgt, limit, workFraction, inMiddayBan, assess, assessDay, nextRise, bestWindow,
   };

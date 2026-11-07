@@ -51,6 +51,13 @@ Deploy: `Dockerfile` and `render.yaml` are included (single process, `PORT` env 
 14. **SMS fallback:** in the supervisor console's phone panel, tap **START**, then **1** or **2**. Abdul gets every message in Bengali, and "2" alerts the first-aider.
 15. **📄 Report** in the supervisor header gives the crew-level HSE report: print it or download it as CSV.
 
+16. **New and returning workers:** sign in as **Bikash** (day 1: 20% safe heat time) or look for the **Back · day 1/4** badge on Suresh. The heat-time bar fills while he works; when it's full he's moved to light work in the shade.
+17. **Cool first, transport second:** as a worker, report *Fainted*. The first-aider gets the cooling protocol with a clock; tap **Cooling started** and **Ambulance called**. Time-to-cooling appears in the safety measures and the report.
+18. **Site readiness:** the supervisor signs off shade, water, tub and ice, first-aider and cooling vests. Missing critical items are flagged, and the first-aider sees whether the tub is ready.
+19. **Dust and UV:** the planner shows PM10 and UV rows. Replay **2025-07-07** for a real dust event (PM10 up to 415 µg/m³).
+20. **Background alerts:** in Chrome (or the installed app), tap **🔔 Turn on alerts**. A supervisor can send a test alert through `POST /api/demo/notify/<workerId>`.
+21. **Personal limits:** answer **🥵 Very hard** a few times at low heat, and the worker's plan becomes stricter ("1 °C more cautious, learned from your check-ins").
+
 The research behind these features is in `docs/RESEARCH.md`.
 
 ## Layout

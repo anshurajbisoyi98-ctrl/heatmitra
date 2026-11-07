@@ -149,6 +149,52 @@
     if (rc && W.me && W.me.rest && W.me.rest.endsAt) rc.textContent = fmt(W.me.rest.endsAt);
   }
 
+  // New or returning to the heat: today's safe heat time and how much is used (NIOSH acclimatisation schedule).
+  function acclimHtml(me) {
+    const a = me.acclim;
+    if (!a || a.kind === 'acclimatised' || a.cap >= 100) return '';
+    const used = Math.min(100, Math.round((a.heatMin / Math.max(1, a.capMin)) * 100));
+    const head = a.kind === 'returning' ? t('returning', { a: a.awayDays, d: a.day, m: a.capMin }) : t('newWorker', { d: a.day, m: a.capMin });
+    return `<div class="notice info">${head}<div class="psi"><span class="p-${used >= 100 ? 'veryhigh' : used >= 75 ? 'high' : 'low'}" style="width:${used}%"></span></div>
+      <div class="small" dir="ltr">${t('expBar')}: ${a.heatMin} / ${a.capMin} ${t('min')}</div></div>`;
+  }
+
+  // Dust (PM10), strong UV and cooling-vest advice for this hour.
+  function hazardHtml(c, me) {
+    const out = [];
+    const air = c.air || {};
+    if (air.dust && air.dust !== 'green') out.push(`<div class="notice ${air.dust === 'red' ? 'rise' : 'off'}">😷 ${t(`dust_${air.dust[0]}`)} <span class="muted small" dir="ltr">PM10 ${air.pm10} µg/m³</span></div>`);
+    if (air.uvHigh) out.push(`<div class="notice off">☀️ ${t('uvHigh', { u: air.uv })}</div>`);
+    if (me.cooling && me.cooling.vests && (c.band === 'orange' || c.band === 'red')) out.push(`<div class="notice info">🧊 ${t('coolVest')}</div>`);
+    return out.join('');
+  }
+
+  // Background alerts: Web Push, so prompts reach the phone even when the app is closed.
+  function pushHtml(me) {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return '';
+    if (me.push && me.push.subscribed) return `<p class="small muted">🔔 ${t('pushOk')}</p>`;
+    if (window.Notification && Notification.permission === 'denied') return `<p class="small muted">🔕 ${t('pushNo')}</p>`;
+    return `<button class="btn" data-w="push" style="width:100%;margin-bottom:12px">🔔 ${t('pushOn')}</button>`;
+  }
+  async function enablePush(ask = true) {
+    try {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+      if (Notification.permission !== 'granted') {
+        if (!ask) return;
+        if ((await Notification.requestPermission()) !== 'granted') return drawWorker();
+      }
+      const reg = await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        const { key } = await api('/api/push/key');
+        const raw = Uint8Array.from(atob(key.replace(/-/g, '+').replace(/_/g, '/')), (ch) => ch.charCodeAt(0));
+        sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: raw });
+      }
+      await api('/api/push/subscribe', { method: 'POST', body: { subscription: sub.toJSON() } });
+      pollWorker();
+    } catch (e) { console.warn('push', e); }
+  }
+
   // Work/rest cycle from the plan: tells the worker when to rest and lets them confirm it.
   function restHtml(me) {
     const r = me.rest;
@@ -171,13 +217,13 @@
     app.innerHTML = `<div class="worker" dir="${dir()}"><div class="card"><h2>${esc(u.name)}</h2>
       <label class="field"><span>${t('task')}</span><select id="fWork">${opt(['light', 'moderate', 'heavy', 'veryheavy'], u.workload)}</select></label>
       <label class="field"><span>${t('clothing')}</span><select id="fCloth">${opt(['standard', 'polyolefin', 'doublelayer', 'vapourbarrier'], u.clothing)}</select></label>
-      <label class="field"><span>${t('days')}</span><input type="number" id="fDays" min="0" max="365" value="${Number(u.daysOnSite) || 0}" /></label>
       <label class="check"><input type="checkbox" id="fConsent" ${me.consent && me.consent.symptoms ? 'checked' : ''} /><span>${t('consent')}</span></label>
       <p class="muted small">${t('privacy')}</p>
       <button class="btn big primary" id="fStart">${t('startShift')}</button></div></div>`;
     $('#fStart').onclick = async () => {
       await api('/api/consent', { method: 'POST', body: { symptoms: $('#fConsent').checked } });
-      await api('/api/shift/start', { method: 'POST', body: { workload: $('#fWork').value, clothing: $('#fCloth').value, daysOnSite: Number($('#fDays').value) } });
+      await api('/api/shift/start', { method: 'POST', body: { workload: $('#fWork').value, clothing: $('#fCloth').value } });
+      enablePush(false);
       W.view = null; W.lastBand = null;
       pollWorker();
     };
@@ -207,6 +253,7 @@
         <div class="act">${t(`a_${b}`)}</div>
         ${c.middayBan ? `<div class="act"><b>${t('ban', { start: c.banStart, end: c.banEnd })}</b></div>` : ''}
         ${c.ruleStop ? `<div class="act"><b>${t('ruleStop', { w: c.wbgt, lim: c.ruleLimit })}</b></div>` : ''}
+        ${c.capUsed ? `<div class="act"><b>${t('capUsed')}</b></div>` : ''}
         <div class="meter" dir="ltr" aria-hidden="true"><span style="left:${Math.max(0, Math.min(100, ((c.wbgtEff - c.limit + 6) / 12) * 100))}%"></span></div>
         <div class="meta" dir="ltr">WBGT ≈ ${c.wbgtEff}°C · limit ${c.limit}°C · ${esc((c.time || '').slice(11))} ${replay} ${stale}</div>
       </div>
@@ -217,7 +264,10 @@
       ${wearHtml()}
       <div class="row" style="margin-bottom:12px"><button class="btn" data-w="hyd" style="flex:1">💧 ${t('hyd')}</button></div>
       ${me.rise ? `<div class="notice rise">${t('rise', { time: me.rise.time.slice(11), band: t(`b_${me.rise.band}`) })}</div>` : ''}
-      ${!c.acclimatised ? `<div class="notice info">${t('acclim', { d: Math.max(1, me.shift.daysOnSite), p: c.exposureCap })}</div>` : ''}
+      ${hazardHtml(c, me)}
+      ${acclimHtml(me)}
+      ${me.personal && me.personal.offset > 0 ? `<div class="notice info">🧠 ${t('personal', { c: me.personal.offset })}</div>` : ''}
+      ${pushHtml(me)}
       ${me.nextCheckinAt ? `<div class="card row" style="justify-content:space-between"><span>${t('next')}</span><span class="timer" id="cdown" dir="ltr"></span></div>` : ''}
       <div class="row" style="flex-direction:column;gap:10px;align-items:stretch">
         <button class="btn big ok" data-w="ok">${t('ok')}</button>
@@ -263,8 +313,18 @@
       <div class="row"><button class="btn big warn" data-w="sendSym">${t('send')}</button><button class="btn" data-w="close">${t('cancel')}</button></div></div>`);
   }
 
+  // For the buddy or bystanders at a suspected heat stroke: start cooling before anything else.
+  function showCfts() {
+    modal('cfts', `<div class="modal alarm" dir="${dir()}"><h1>🧊 ${t('emTitle')}</h1><p style="font-size:18px"><b>${t('cfts')}</b></p>
+      ${W.me && W.me.cooling && W.me.cooling.spot ? `<p style="font-size:17px">${t('coolSpot', { where: esc(W.me.cooling.spot) })}</p>` : ''}<button class="btn big" data-w="close">${t('close')}</button></div>`);
+    say(t('cfts'));
+  }
+
   function showEmergency(n) {
+    const spot = W.me && W.me.cooling && W.me.cooling.spot;
     modal('emergency', `<div class="modal alarm" dir="${dir()}"><h1>${t('emTitle')}</h1><p style="font-size:18px">${t('emBody', { n: esc(n) })}</p>
+      <p class="small"><b>${t('cfts')}</b></p>
+      ${spot ? `<p style="font-size:17px"><b>🧊 ${t('coolSpot', { where: esc(spot) })}</b></p>` : ''}
       <a class="btn big ok" style="display:block;text-align:center;text-decoration:none" href="tel:${esc(n)}">${t('call', { n: esc(n) })}</a>
       <p><button class="btn" data-w="close">${t('close')}</button></p></div>`);
     say(`${t('emTitle')}. ${t('emBody', { n })}`);
@@ -401,12 +461,13 @@
         <div class="card" style="grid-column:1/-1" id="sv-map"></div>
         <div class="card" id="sv-crew"></div><div class="card" id="sv-alerts"></div>
         <div class="card" id="sv-sched"></div><div class="card" id="sv-logi"></div>
-        <div class="card" id="sv-sms"></div>
+        <div class="card" id="sv-ready"></div><div class="card" id="sv-sms"></div>
         <div class="card" style="grid-column:1/-1" id="sv-metrics"></div>
         <div class="card" style="grid-column:1/-1" id="sv-cal"></div>
         <div class="card" id="sv-audit"></div></div>`;
       V.map = null; V.mapSite = null; V.hmPlay = null;
       drawSmsShell();
+      drawReadiness();
       drawMapShell();
       drawSchedShell();
       drawLogiShell();
@@ -417,6 +478,7 @@
     } else {
       app.innerHTML = `<div class="grid"><div class="card" id="md-alerts"></div>
         <div class="card"><h2>Heat stroke: first aid</h2><ol class="small">
+          ${(() => { const s = site(); const r = readyItems(s); return `<li style="list-style:none;margin-left:-18px">${r.tub ? '✅ Cold-water tub and ice confirmed ready today' : '⚠️ <b>Cold-water tub and ice NOT confirmed today</b>: check now'}${s.coolSpot ? ` · cooling point: ${esc(s.coolSpot)}` : ''}</li>`; })()}
           <li>Call the site emergency number. Stay with the worker.</li>
           <li>Move them to shade or a cool room. Remove outer clothing and PPE.</li>
           <li>Cool immediately: cold-water immersion if available, otherwise soak with cold water and fan; ice packs at neck, armpits, groin.</li>
@@ -437,6 +499,42 @@
     drawLogi();
     drawOutlook();
     loadHeatmap();
+  }
+
+  // ---------------- site readiness and cooling ----------------
+  // [key, label, critical]. Critical items are what heat-stroke survival depends on: cooling at once, water, shade, a first-aider.
+  const READY = [
+    ['shade', 'Shade for everyone who must rest at once', true],
+    ['water', 'Cool drinking water at every work area', true],
+    ['tub', 'Cold-water immersion tub and ice ready (heat stroke: cool first, transport second)', true],
+    ['firstaider', 'First-aider on site, phone charged', true],
+    ['vests', 'Cooling vests or wet towels for rest breaks', false],
+    ['restarea', 'Rest area with fans or air conditioning', false],
+    ['route', 'Emergency route and number posted', false],
+  ];
+  function todayAt(s) { return new Intl.DateTimeFormat('en-CA', { timeZone: s.tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
+  function readyItems(s) { return s.readiness && s.readiness.date === todayAt(s) ? { ...s.readiness.items, _done: true, _by: s.readiness.by, _at: s.readiness.at } : {}; }
+  function drawReadiness() {
+    const el = $('#sv-ready');
+    if (!el) return;
+    const s = site();
+    const r = readyItems(s);
+    const missing = READY.filter(([k, , crit]) => crit && !r[k]);
+    el.innerHTML = `<h2>Site readiness for today's heat</h2>
+      ${!r._done ? '<div class="notice rise"><b>Not checked today.</b> Confirm before the first shift.</div>'
+        : missing.length ? `<div class="notice rise"><b>Not ready:</b> ${missing.map(([, l]) => esc(l.split(' (')[0])).join(' · ')}</div>`
+          : `<div class="notice info">✅ Ready: checked by ${esc(r._by)} at ${new Date(r._at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>`}
+      ${READY.map(([k, label, crit]) => `<label class="check small"><input type="checkbox" data-ready="${k}" ${r[k] ? 'checked' : ''} /><span>${esc(label)}${crit ? ' <b style="color:var(--red)">*</b>' : ''}</span></label>`).join('')}
+      <label class="field small"><span>Cooling point shown on workers' emergency screen</span><input id="coolSpot" class="btn sm" style="width:100%" maxlength="80" value="${esc(s.coolSpot || '')}" /></label>
+      <button class="btn sm primary" data-c="saveReady">Sign off readiness</button>
+      <p class="muted small">* critical. Cooling vests reduced heart rate and body temperature in a 140-worker field study (Chan et al., PolyU). Workers get cooling-vest advice when vests are ticked and risk is high.</p>`;
+  }
+  async function saveReadiness() {
+    const items = Object.fromEntries([...document.querySelectorAll('[data-ready]')].map((x) => [x.dataset.ready, x.checked]));
+    const s = await api('/api/site/readiness', { method: 'POST', body: { siteId: V.site, items, coolSpot: $('#coolSpot').value } });
+    V.config.sites = V.config.sites.map((x) => (x.id === s.id ? s : x));
+    drawReadiness();
+    pollConsole();
   }
 
   // ---------------- SMS fallback simulator (stands in for a basic phone) ----------------
@@ -487,9 +585,12 @@
       rows.push([`${WORK_LABEL[wl]}: hours normal / caution / work-rest / STOP (05:00–19:59)`, `${c.green} / ${c.yellow} / ${c.orange} / ${c.red}`]);
     }
     rows.push(
+      ['Site readiness today', (() => { const r = readyItems(s); const n = READY.filter(([k]) => r[k]).length; return r._done ? `${n}/${READY.length} ready${READY.filter(([k, , crit]) => crit && !r[k]).length ? ' (critical items missing)' : ''}` : 'not checked'; })()],
+      ['New or returning workers on a ramp-up', sup(m.newOrReturning)], ['Workers on stricter personal limits', sup(m.personalisedWorkers)],
       ['Workers on shift now', sup(V.crew ? V.crew.crew.length : null)], ['Alerts opened', sup(m.alertsOpened)],
       ...Object.entries(m.byReason || {}).map(([r, n]) => [`  of which: ${REASON[r] || r}`, sup(n)]),
       ['Alerts handled by a buddy', sup(m.buddyChecks)], ['Reached first-aider', sup(m.reachedFirstAider)], ['Emergencies', sup(m.emergencies)],
+      ['Emergencies cooled on site', sup(m.coolingCases)], ['Median time from emergency to cooling start (s)', m.medianTimeToCoolingSec ?? '–'],
       ['Median time to a human response (s)', m.medianResponseSec ?? '–'], ['Check-in prompts answered by worker (%)', m.checkinPromptResponseRate ?? '–'],
       ['Rest breaks taken, whole crew (%)', m.restAdherence ?? '–'], ['Check-ins where work felt very hard (%)', m.veryHardPct ?? '–'],
       ...Object.entries(m.outcomes || {}).map(([k, n]) => [`Cases closed as: ${OUTCOME_LABEL[k]}`, sup(n)]),
@@ -552,7 +653,7 @@
         <button class="btn sm" data-c="calib" title="Enter a reading from an on-site WBGT meter; leave empty to clear">Calibrate</button>
         ${V.config.demo ? '<button class="btn sm primary" data-c="crew">Add simulated crew</button>' : ''}
       </div></div></div>`;
-    $('#siteSel').onchange = (e) => { V.site = e.target.value; loadForecast(); pollConsole(); };
+    $('#siteSel').onchange = (e) => { V.site = e.target.value; loadForecast(); pollConsole(); drawReadiness(); };
     $('#ruleSel').onchange = async (e) => {
       const ns = await api('/api/site/rule', { method: 'POST', body: { siteId: V.site, rule: e.target.value } });
       V.config.sites = V.config.sites.map((x) => (x.id === ns.id ? ns : x));
@@ -589,6 +690,8 @@
         <tr><th>Hour</th>${hours.map((h) => `<th class="${h.time === fc.nowTime ? 'now' : ''}">${h.time.slice(11, 13)}</th>`).join('')}</tr>
         <tr><td>Est. WBGT °C</td>${hours.map((h) => `<td>${(Heat.wbgt(h.t, h.rh, h.sw, h.wind) + (s.calib || 0)).toFixed(1)}</td>`).join('')}</tr>
         <tr><td>Air °C / RH %</td>${hours.map((h) => `<td>${Math.round(h.t)}/${Math.round(h.rh)}</td>`).join('')}</tr>
+        ${hours.some((h) => h.pm10 != null) ? `<tr><td>Dust PM10 µg/m³</td>${hours.map((h) => { const a = Heat.airAssess(h.pm10, h.uv); return `<td class="${a.dust && a.dust !== 'green' ? `c-${a.dust}` : ''}">${a.pm10 ?? '–'}</td>`; }).join('')}</tr>
+        <tr><td>UV index</td>${hours.map((h) => `<td class="${h.uv >= 8 ? 'c-orange' : ''}">${h.uv == null ? '–' : Math.round(h.uv)}</td>`).join('')}</tr>` : ''}
         ${plans.map(([l, p]) => `<tr><td>${l}</td>${p.map(cell).join('')}</tr>`).join('')}
       </table></div>
       <p class="muted small">Cells show minutes of work/rest per hour from the NIOSH time-weighted limit (acclimatised crew in normal clothes unless the row says otherwise). STOP = stop this task, light work in shade only. Hover a cell for WBGT and the limit. The outlined column is now.</p>`;
@@ -680,7 +783,7 @@
     el.innerHTML = `<h2>Crew on shift (${c.crew.length})</h2>
       <div class="counts">${['green', 'yellow', 'orange', 'red'].map((b) => `<div class="c-${b}"><b>${c.counts[b]}</b>${b}</div>`).join('')}</div>
       ${c.crew.length ? `<table class="list"><tr><th>Worker</th><th>Task</th><th>Check-in</th><th>Signal</th><th></th></tr>
-        ${c.crew.map((w) => `<tr><td><span class="dot d-${w.band}"></span>${esc(w.name)}${w.simulated ? ' <span class="tag">sim</span>' : ''}</td>
+        ${c.crew.map((w) => `<tr><td><span class="dot d-${w.band}"></span>${esc(w.name)}${w.simulated ? ' <span class="tag">sim</span>' : ''}${w.acclim ? ` <span class="tag new">${w.acclim.kind === 'returning' ? 'Back' : 'New'} · day ${w.acclim.day}${w.acclim.of ? `/${w.acclim.of}` : ''}${w.heatPct != null ? ` · heat time ${w.heatPct}%` : ''}</span>` : ''}</td>
           <td>${w.workload}</td><td>${ago(w.lastCheckinSec)} ago</td><td>${w.signal === 'lost' ? '<b style="color:var(--red)">lost</b>' : 'ok'}</td>
           <td>${w.alert ? `<span class="tag">${STAGE_LABEL[w.alert.stage]}</span>` : V.config.demo && w.simulated ? `<button class="btn sm" data-silent="${w.workerId}">Simulate going silent</button>` : ''}</td></tr>`).join('')}</table>`
         : '<p class="muted small">No one on shift. Sign a worker in from another tab, or add the simulated crew.</p>'}
@@ -708,8 +811,31 @@
     }
     return `<div class="alert ${a.severity === 'emergency' ? 'emergency' : ''} ${done ? 'resolved' : ''}">
       <div class="row" style="justify-content:space-between"><b>${esc(a.worker)}</b><span class="small muted">${REASON[a.reason] || a.reason} · ${a.severity} · ${age}s ago</span></div>
-      ${ladder}${clinical}<div class="row">${actions}</div>
+      ${ladder}${clinical}${cftsHtml(a, role)}<div class="row">${actions}</div>
       <div class="small muted">${a.history.slice(-3).map((h) => esc(h.note)).join(' → ')}</div></div>`;
+  }
+
+  // "Cool first, transport second": guided on-site cooling for suspected heat stroke, with a time-to-cooling clock.
+  // Evidence: no deaths when cooling was fast enough, across 521 cases (Filep 2020); 274 consecutive survivors with
+  // on-site cold-water immersion (Demartini 2015); higher worker deaths where EMS protocols lack it (Tishukaj 2024).
+  const mmss = (ms) => { const x = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(x / 60)}:${pad2(x % 60)}`; };
+  function cftsHtml(a, role) {
+    if (a.severity !== 'emergency') return '';
+    const t0 = a.emergencyAt || a.openedAt;
+    const status = a.coolingAt ? `🧊 cooling started ${mmss(a.coolingAt - t0)} after the alert${a.cooledAt ? ' · finished' : ''}` : `⏱ ${mmss(Date.now() - t0)} since the alert · cooling not started`;
+    if (role !== 'medic') return `<div class="small cfts-line ${a.coolingAt ? '' : 'late'}">${status}</div>`;
+    if (a.status === 'resolved') return `<div class="small cfts-line">${status}</div>`;
+    const s = site();
+    const tub = readyItems(s).tub;
+    const step = (done, text, act, label) => `<li class="${done ? 'done' : ''}">${text}${!done && act ? ` <button class="btn sm ${act === 'cooling' ? 'ok' : ''}" data-act="${act}" data-id="${a.id}">${label}</button>` : done ? ' ✓' : ''}</li>`;
+    return `<div class="cfts"><div class="row" style="justify-content:space-between"><b>🧊 Cool first, transport second</b><span class="cfts-clock ${a.coolingAt ? '' : 'late'}">${status}</span></div>
+      <ol>
+        ${step(a.coolingAt, `<b>Cool now, on site.</b> ${tub ? 'Cold-water immersion up to the neck (tub confirmed ready today).' : 'No tub confirmed today: tarp or ice-water sheets, cold-water soaked towels rotated every 2–3 min, ice at neck, armpits and groin.'}`, 'cooling', 'Cooling started')}
+        ${step(a.ambulanceAt, `<b>Call ${esc(s.emergency)}</b> at the same time: "suspected exertional heat stroke, cooling on site".`, 'ambulance', 'Ambulance called')}
+        <li>Keep cooling until the worker is alert, or core temperature is about 39 °C if you can measure it. Nothing by mouth if confused; protect the airway.</li>
+        ${step(a.cooledAt, 'Then hand over to the ambulance, with the time cooling started.', a.coolingAt ? 'cooled' : null, 'Cooling finished')}
+      </ol>
+      <div class="muted small">Target: cooling within 5 minutes of the alert. No deaths when cooling was fast enough (Filep 2020, 521 cases).</div></div>`;
   }
 
   function drawAlerts(sel, role) {
@@ -730,7 +856,11 @@
         <div><b>${k(m.medianResponseSec, 's')}</b>median time to a human response</div><div><b>${m.reachedFirstAider}</b>reached first-aider</div>
         <div><b>${m.signalLost}</b>signal-lost alerts</div><div><b>${m.emergencies}</b>emergencies</div>
         <div><b>${k(m.restAdherence, '%')}</b>rest breaks taken (whole crew, never per worker)</div>
-        <div><b>${k(m.veryHardPct, '%')}</b>check-ins where work felt very hard</div></div>
+        <div><b>${k(m.veryHardPct, '%')}</b>check-ins where work felt very hard</div>
+        <div><b>${m.newOrReturning ?? 0}</b>new or returning workers on a ramp-up</div>
+        <div><b>${m.personalisedWorkers ?? 0}</b>workers on stricter personal limits</div>
+        <div><b>${m.pushSubscribed ?? 0}</b>phones with background alerts</div>
+        <div><b>${k(m.medianTimeToCoolingSec != null ? mmss(m.medianTimeToCoolingSec * 1000) : null)}</b>median time from emergency to cooling</div></div>
         ${m.outcomes && Object.values(m.outcomes).some(Boolean) ? `<p class="small">Cases closed by the first-aider: ${Object.entries(m.outcomes).filter(([, n]) => n).map(([key, n]) => `${OUTCOME_LABEL[key]} <b>${n}</b>`).join(' · ')}</p>` : ''}` : ''}
       ${V.bt ? `<h2 style="margin-top:14px">Back-test: ${esc(V.bt.site)}, ${esc(V.bt.period)}</h2>
         <div class="kpis"><div><b>${V.bt.pod}%</b>danger hours warned (hit rate)</div><div><b>${V.bt.far}%</b>false-alarm ratio</div>
@@ -966,9 +1096,16 @@
       if (w === 'sendSym') return checkin('unwell', [...overlay.querySelectorAll('.chip.on')].map((x) => x.dataset.sym));
       if (w === 'end') { await api('/api/shift/end', { method: 'POST' }).catch(() => {}); local.del('hm_plan'); W.view = null; W.me = null; return pollWorker(); }
       if (b.dataset.act) { await api(`/api/alerts/${b.dataset.id}/${b.dataset.act}`, { method: 'POST', body: { outcome: V.outcomes[b.dataset.id] || '' } }); return pollConsole(); }
+      if (w === 'push') return enablePush(true);
+      if (c0 === 'saveReady') return saveReadiness();
       if (w === 'rest') { try { const r = await api('/api/rest', { method: 'POST' }); if (W.me) W.me.rest = r; } catch {} return drawWorker(); }
       if (c0 === 'brief') return openBriefing();
-      if (b.dataset.bud) { await api(`/api/alerts/${b.dataset.id}/buddy`, { method: 'POST', body: { result: b.dataset.bud } }).catch(() => {}); closeModal(); return pollWorker(); }
+      if (b.dataset.bud) {
+        await api(`/api/alerts/${b.dataset.id}/buddy`, { method: 'POST', body: { result: b.dataset.bud } }).catch(() => {});
+        closeModal();
+        if (b.dataset.bud === 'help') showCfts();
+        return pollWorker();
+      }
       if (b.dataset.sms) return sendSmsDemo(b.dataset.sms);
       if (c0 === 'smsSend') { const v = $('#smsText').value.trim(); $('#smsText').value = ''; return v && sendSmsDemo(v); }
       if (c0 === 'report') return openReport();

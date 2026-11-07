@@ -7,7 +7,8 @@
       "lon": 54.5,
       "tz": "Asia/Dubai",
       "middayBan": "UAE",
-      "emergency": "998"
+      "emergency": "998",
+      "coolSpot": "Rest cabin B, next to gate 2"
     },
     {
       "id": "jebelali",
@@ -16,7 +17,8 @@
       "lon": 55.06,
       "tz": "Asia/Dubai",
       "middayBan": "UAE",
-      "emergency": "998"
+      "emergency": "998",
+      "coolSpot": "Cool room, warehouse 3 entrance"
     },
     {
       "id": "lusail",
@@ -25,7 +27,8 @@
       "lon": 51.49,
       "tz": "Asia/Qatar",
       "middayBan": "QAT",
-      "emergency": "999"
+      "emergency": "999",
+      "coolSpot": "Shaded rest tent, north gate"
     },
     {
       "id": "okhla",
@@ -34,7 +37,8 @@
       "lon": 77.27,
       "tz": "Asia/Kolkata",
       "middayBan": false,
-      "emergency": "112"
+      "emergency": "112",
+      "coolSpot": "Canteen block, ground floor"
     }
   ],
   "defaultReplay": {
@@ -62,8 +66,9 @@
       "siteId": "mussafah",
       "workload": "moderate",
       "clothing": "standard",
-      "daysOnSite": 3,
-      "buddy": "w1"
+      "daysOnSite": 2,
+      "buddy": "w1",
+      "awayDays": 1
     },
     {
       "id": "w3",
@@ -95,8 +100,9 @@
       "siteId": "mussafah",
       "workload": "veryheavy",
       "clothing": "standard",
-      "daysOnSite": 10,
-      "buddy": "w6"
+      "daysOnSite": 40,
+      "buddy": "w6",
+      "awayDays": 12
     },
     {
       "id": "w6",
@@ -106,7 +112,7 @@
       "siteId": "mussafah",
       "workload": "moderate",
       "clothing": "polyolefin",
-      "daysOnSite": 1,
+      "daysOnSite": 0,
       "buddy": "w5"
     },
     {

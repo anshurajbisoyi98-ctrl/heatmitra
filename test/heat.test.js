@@ -76,6 +76,40 @@ test('country rule packs: ban windows and Qatar WBGT stop rule', () => {
   assert.ok(q.wbgt >= 32.1 && q.ruleStop && q.band === 'red', 'WBGT ≥ 32.1 °C stops work in Qatar');
 });
 
+test('acclimatisation plan: new, returning, weekend gap, long absence', () => {
+  const days = (start, n) => Array.from({ length: n }, (_, i) => new Date(Date.parse(`${start}T00:00:00Z`) + i * 864e5).toISOString().slice(0, 10));
+  assert.deepStrictEqual(Heat.acclimPlan([], '2025-07-10'), { kind: 'new', day: 1, of: 5, cap: 20, acclimatised: false, awayDays: null });
+  assert.strictEqual(Heat.acclimPlan(days('2025-07-08', 2), '2025-07-10').cap, 60, 'day 3 of a new worker = 60%');
+  const back = Heat.acclimPlan(days('2025-06-01', 20), '2025-07-02'); // last heat day 20 Jun, 12 days away
+  assert.strictEqual(back.kind, 'returning');
+  assert.strictEqual(back.cap, 50);
+  assert.strictEqual(back.awayDays, 12);
+  const weekend = Heat.acclimPlan([...days('2025-06-01', 12), '2025-06-15'], '2025-06-16'); // 2-day gaps don't reset
+  assert.strictEqual(weekend.kind, 'acclimatised');
+  assert.strictEqual(Heat.acclimPlan(days('2025-01-01', 30), '2025-07-01').kind, 'new', '6+ weeks away = new again');
+});
+
+test('dust and UV: PM10 bands, hazardous dust stops work', () => {
+  assert.strictEqual(Heat.airAssess(100, 5).dust, 'green');
+  assert.strictEqual(Heat.airAssess(300, 5).dust, 'orange');
+  assert.strictEqual(Heat.airAssess(500, 11).uvHigh, true);
+  const a = Heat.assess({ t: 25, rh: 30, workload: 'light', clothing: 'standard', daysOnSite: 30, pm10: 600 });
+  assert.strictEqual(a.band, 'red');
+  assert.strictEqual(a.dustStop, true);
+});
+
+test('personal limits only ever tighten', () => {
+  let s = null;
+  for (let i = 0; i < 4; i++) s = Heat.personalUpdate(s, -2, 1); // struggling well below the limit
+  const tight = Heat.personalOffset(s);
+  assert.ok(tight > 0.5 && tight <= 3, `struggles tighten the limit (got ${tight})`);
+  let easy = null;
+  for (let i = 0; i < 10; i++) easy = Heat.personalUpdate(easy, 1, 0); // fine even above the limit
+  assert.strictEqual(Heat.personalOffset(easy), 0, 'never looser than the population limit');
+  const o = { t: 34, rh: 40, sw: 600, wind: 10, workload: 'moderate', clothing: 'standard', daysOnSite: 30 };
+  assert.ok(Heat.assess({ ...o, personal: 2 }).limit < Heat.assess(o).limit);
+});
+
 test('advance warning finds the next rise', () => {
   const plan = ['green', 'green', 'yellow', 'red'].map((band, i) => ({ band, time: `2025-07-10T0${i + 6}:00` }));
   assert.deepStrictEqual(Heat.nextRise(plan, 0), { time: '2025-07-10T08:00', band: 'yellow', hoursAhead: 2 });

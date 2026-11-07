@@ -62,7 +62,29 @@ A short, time-boxed literature scan, done on the challenge day. Google Scholar b
 - **Source:** NIOSH's heat-stress recommendations include a buddy system, so co-workers watch each other for signs of heat illness.
 - **In HeatMitra:** a "check on your buddy" step sits between the worker and the supervisor. It's usually the fastest physical check on a site, and the buddy sees nothing clinical.
 
+### 9. Cool first, transport second (built, picked independently by both research agents)
+- **Filep et al. 2020, *Medicina*** (systematic review, 521 heat-stroke patients): no deaths when cooling was fast enough (> 0.15 °C/min); 23 deaths (4.4%) with slower cooling, and 4.57 times the risk of complications. https://pubmed.ncbi.nlm.nih.gov/33167534/
+- **Demartini et al. 2015, *Med Sci Sports Exerc*** (18-year case series, 274 cases): on-site cold-water immersion cooled at 0.22 °C/min, and everyone survived. A 2024 update reports 454 cases, all survived. https://pubmed.ncbi.nlm.nih.gov/24983342/
+- **Tishukaj et al. 2024, *J Emerg Med*** (US state EMS guidelines): labourers' odds of dying from heat stroke were 3.7 times higher where guidelines left out "cool first, transport second". Read on Google Scholar; no PMID found.
+- **Hosokawa et al. 2017, *Ann Emerg Med*** (lab RCT): tarp-assisted cooling at 0.17 °C/min against 0.04 °C/min passive. https://pubmed.ncbi.nlm.nih.gov/27865532/
+- **DeGroot et al. 2023, *J Emerg Med***: ice-sheet cooling, 0.20% mortality across 462 casualties. https://pubmed.ncbi.nlm.nih.gov/36806435/
+- **Gulf relevance: Pradhan et al. 2019, *Cardiology*** (Nepali workers in Qatar): cardiovascular deaths were 58% of deaths in the hot season against 22% in the cool season, and up to 200 of 571 were judged preventable. https://pubmed.ncbi.nlm.nih.gov/31302648/
+
+### 10. New and returning workers (built)
+- **CDC MMWR 2014 (Arbury et al.)**: 9 of 13 US worker heat deaths happened in the first 3 days on the job, 4 on the first day. https://www.cdc.gov/mmwr/preview/mmwrhtml/mm6331a1.htm
+- **NIOSH**: acclimatisation can be lost after a week or more away. https://www.cdc.gov/niosh/heat-stress/recommendations/acclimatization.html
+
+### 11. Cooling vests, dust, background alerts, personal limits (built)
+- **Cooling vests**: a 140-worker Hong Kong field study found a vest worn during rest significantly reduced heart rate and body temperature (Chan et al., PolyU). https://research.polyu.edu.hk/en/publications/evaluating-the-effectiveness-and-practicality-of-a-cooling-vest-a/
+- **Dust**: during the May 2022 storm, Dubai's city-wide PM10 average was 784.7 µg/m³ (IQAir). https://www.iqair.com/ca/newsroom/2022-dubai-sandstorm
+- **Digital programme with outcomes, TEMP cluster RCT (Ding et al. 2025, *Environ Health Perspect*, 528 workers)**: an app with a morning risk score and alerts, plus cooling kit: heat illness 1.80% against 4.82%. The adjusted odds ratio was significant at one follow-up only. https://doi.org/10.1289/EHP14172
+- **Personalised models**: ML heat-strain models reach high accuracy on small samples (e.g. 19 workers in Saudi Arabia; 67 workers without wearables, F1 0.79), but none is validated per worker. So HeatMitra's personalisation can only tighten limits.
+
 ## Found, not built yet (roadmap)
+- **Proof that breaks, water and shade happened:** check-ins at the shade station by QR code or beacon, supervisor field audits, crew compliance scores. **Adelante (Glaser 2020; Hansson 2025, 1,044 workers)**: kidney injury fell from 21% to 1%, and the gains tracked how well the programme was put into practice. https://pubmed.ncbi.nlm.nih.gov/32404530/ · https://doi.org/10.1136/oemed-2025-110128
+- **Off-shift recovery** (hot housing, short sleep): 29% of 55 workers reached a higher core temperature off work than at work (Krisher 2025); about 5 h of sleep in rooms around 30 °C (Lucas 2025). https://pubmed.ncbi.nlm.nih.gov/40193146/
+- **Kidney screening** for workers with high cumulative heat exposure, with occupational-health partners.
+- **Heat-triggered procedures with an inspector-readable log**: California's standard was associated with 15–27% fewer injury claims on hot days (WCRI 2025; not peer-reviewed).
 
 - **Thermal Work Limit (TWL):** (deliberately not approximated: it needs a full heat-balance model, and a safety index we can't verify shouldn't ship)
   - Brake & Bates; tested on UAE construction sites, where one study found it more useful than WBGT for well-hydrated, self-paced workers.

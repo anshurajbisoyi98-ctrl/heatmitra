@@ -273,3 +273,79 @@ Object.assign(I18N.bn, { buddyTitle: 'এখনই {name}-কে দেখুন
 Object.assign(I18N.ml, { buddyTitle: '{name}-നെ ഇപ്പോൾ നോക്കുക', buddyBody: 'അവർ ഫോണിന് മറുപടി നൽകിയിട്ടില്ല. പോയി അവരെ നോക്കുക.', buddyOk: 'ഞാൻ കണ്ടു, അവർക്ക് കുഴപ്പമില്ല', buddyHelp: 'അവർക്ക് സഹായം വേണം', yourBuddy: 'നിങ്ങളുടെ കൂട്ടുകാരൻ: {name}', smsReply: 'മറുപടി 1 = എനിക്ക് കുഴപ്പമില്ല, 2 = എനിക്ക് സുഖമില്ല.', smsStart: 'ഷിഫ്റ്റ് തുടങ്ങി. വിശ്രമിക്കേണ്ട സമയത്ത് ഞങ്ങൾ മെസേജ് അയയ്ക്കും. ഷിഫ്റ്റ് അവസാനിപ്പിക്കാൻ STOP അയയ്ക്കുക.', smsEnd: 'ഷിഫ്റ്റ് അവസാനിച്ചു. വിശ്രമിച്ച് വെള്ളം കുടിക്കുക.' });
 Object.assign(I18N.ne, { buddyTitle: '{name} लाई अहिले हेर्नुहोस्', buddyBody: 'उहाँले फोनको जवाफ दिनुभएको छैन। गएर हेर्नुहोस्।', buddyOk: 'मैले देखेँ, उहाँ ठीक हुनुहुन्छ', buddyHelp: 'उहाँलाई मद्दत चाहिन्छ', yourBuddy: 'तपाईंको साथी: {name}', smsReply: 'जवाफ दिनुहोस् 1 = म ठीक छु, 2 = मलाई सन्चो छैन।', smsStart: 'सिफ्ट सुरु भयो। आराम गर्ने समयमा हामी म्यासेज गर्नेछौं। सिफ्ट सक्न STOP पठाउनुहोस्।', smsEnd: 'सिफ्ट सकियो। आराम गर्नुहोस् र पानी पिउनुहोस्।' });
 Object.assign(I18N.tl, { buddyTitle: 'Puntahan si {name} ngayon', buddyBody: 'Hindi siya sumasagot sa telepono. Puntahan mo siya.', buddyOk: 'Nakita ko siya, okay siya', buddyHelp: 'Kailangan niya ng tulong', yourBuddy: 'Kapareha mo: {name}', smsReply: 'Sumagot ng 1 = Okay ako, 2 = Masama ang pakiramdam ko.', smsStart: 'Nagsimula na ang shift. Magte-text kami kapag oras na ng pahinga. Sumagot ng STOP para tapusin ang shift.', smsEnd: 'Tapos na ang shift. Magpahinga at uminom ng tubig.' });
+
+// Acclimatisation protection, dust/UV, cooling, personal limits, background alerts.
+Object.assign(I18N.en, {
+  newWorker: 'New to the heat: day {d} of 5. Your safe heat time today is {m} min.', returning: 'Welcome back after {a} days away: day {d} of 4. Your safe heat time today is {m} min.',
+  expBar: 'Heat time used today', capUsed: 'Your safe heat time for today is used up. Light work in the shade only.',
+  dust_y: 'Dust in the air: wear a mask if you have asthma or breathing problems.', dust_o: 'Dusty air: wear an FFP2/N95 mask outdoors.',
+  dust_r: 'Dust storm: stop heavy outdoor work, go indoors, wear an FFP2/N95 mask.', uvHigh: 'Very strong sun (UV {u}): cover your skin, wear a hat and use sunscreen.',
+  coolVest: 'Wear a cooling vest during rest breaks.', coolSpot: 'Cooling point: {where}', personal: 'Your plan is {c} °C more cautious, learned from your own check-ins.',
+  pushOn: 'Turn on alerts', pushOk: 'Alerts are on, even when the app is closed.', pushNo: 'Alerts are blocked. Allow notifications for this app in your phone settings.',
+});
+Object.assign(I18N.hi, {
+  newWorker: 'गर्मी में नए हैं: दिन {d} / 5। आज आपका सुरक्षित गर्मी समय {m} मिनट है।', returning: '{a} दिन बाद वापसी: दिन {d} / 4। आज आपका सुरक्षित गर्मी समय {m} मिनट है।',
+  expBar: 'आज इस्तेमाल हुआ गर्मी समय', capUsed: 'आज का आपका सुरक्षित गर्मी समय पूरा हो गया। सिर्फ़ छाँव में हल्का काम।',
+  dust_y: 'हवा में धूल: अस्थमा या साँस की तकलीफ़ हो तो मास्क पहनें।', dust_o: 'धूल भरी हवा: बाहर FFP2/N95 मास्क पहनें।',
+  dust_r: 'धूल भरी आँधी: भारी बाहरी काम रोकें, अंदर जाएँ, FFP2/N95 मास्क पहनें।', uvHigh: 'बहुत तेज़ धूप (UV {u}): त्वचा ढकें, टोपी पहनें और सनस्क्रीन लगाएँ।',
+  coolVest: 'आराम के ब्रेक में कूलिंग वेस्ट पहनें।', coolSpot: 'ठंडा करने की जगह: {where}', personal: 'आपकी योजना {c} °C ज़्यादा सावधान है, आपके अपने चेक-इन से सीखी गई।',
+  pushOn: 'अलर्ट चालू करें', pushOk: 'अलर्ट चालू हैं, ऐप बंद होने पर भी।', pushNo: 'अलर्ट बंद हैं। फ़ोन की सेटिंग में इस ऐप के नोटिफ़िकेशन की अनुमति दें।',
+});
+Object.assign(I18N.ar, {
+  newWorker: 'جديد على الحر: اليوم {d} من 5. وقتك الآمن في الحر اليوم {m} دقيقة.', returning: 'عودة بعد غياب {a} يومًا: اليوم {d} من 4. وقتك الآمن في الحر اليوم {m} دقيقة.',
+  expBar: 'وقت الحر المستخدم اليوم', capUsed: 'انتهى وقتك الآمن في الحر لهذا اليوم. عمل خفيف في الظل فقط.',
+  dust_y: 'غبار في الهواء: ارتدِ كمامة إذا كان لديك ربو أو مشاكل في التنفس.', dust_o: 'هواء مغبر: ارتدِ كمامة FFP2/N95 في الخارج.',
+  dust_r: 'عاصفة غبارية: أوقف العمل الثقيل في الخارج، ادخل إلى مكان مغلق، وارتدِ كمامة FFP2/N95.', uvHigh: 'شمس قوية جدًا (UV {u}): غطِّ جلدك وارتدِ قبعة واستخدم واقي الشمس.',
+  coolVest: 'ارتدِ سترة تبريد أثناء فترات الراحة.', coolSpot: 'نقطة التبريد: {where}', personal: 'خطتك أكثر حذرًا بمقدار {c} °م، تعلّمناها من تسجيلاتك.',
+  pushOn: 'تفعيل التنبيهات', pushOk: 'التنبيهات مفعّلة حتى عند إغلاق التطبيق.', pushNo: 'التنبيهات محظورة. اسمح بإشعارات هذا التطبيق من إعدادات هاتفك.',
+});
+Object.assign(I18N.ur, {
+  newWorker: 'گرمی میں نئے ہیں: دن {d} / 5۔ آج آپ کا محفوظ گرمی کا وقت {m} منٹ ہے۔', returning: '{a} دن بعد واپسی: دن {d} / 4۔ آج آپ کا محفوظ گرمی کا وقت {m} منٹ ہے۔',
+  expBar: 'آج استعمال ہونے والا گرمی کا وقت', capUsed: 'آج کا آپ کا محفوظ گرمی کا وقت پورا ہو گیا۔ صرف سائے میں ہلکا کام۔',
+  dust_y: 'ہوا میں دھول: دمہ یا سانس کی تکلیف ہو تو ماسک پہنیں۔', dust_o: 'دھول بھری ہوا: باہر FFP2/N95 ماسک پہنیں۔',
+  dust_r: 'ریت کا طوفان: بھاری بیرونی کام روکیں، اندر جائیں، FFP2/N95 ماسک پہنیں۔', uvHigh: 'بہت تیز دھوپ (UV {u}): جلد ڈھانپیں، ٹوپی پہنیں اور سن اسکرین لگائیں۔',
+  coolVest: 'آرام کے وقفے میں کولنگ ویسٹ پہنیں۔', coolSpot: 'ٹھنڈا ہونے کی جگہ: {where}', personal: 'آپ کا منصوبہ {c} °C زیادہ محتاط ہے، آپ کے اپنے چیک اِن سے سیکھا گیا۔',
+  pushOn: 'الرٹ آن کریں', pushOk: 'الرٹ آن ہیں، ایپ بند ہونے پر بھی۔', pushNo: 'الرٹ بند ہیں۔ فون کی سیٹنگز میں اس ایپ کے نوٹیفکیشن کی اجازت دیں۔',
+});
+Object.assign(I18N.bn, {
+  newWorker: 'গরমে নতুন: দিন {d} / 5। আজ আপনার নিরাপদ গরমের সময় {m} মিনিট।', returning: '{a} দিন পর ফিরেছেন: দিন {d} / 4। আজ আপনার নিরাপদ গরমের সময় {m} মিনিট।',
+  expBar: 'আজ ব্যবহৃত গরমের সময়', capUsed: 'আজকের নিরাপদ গরমের সময় শেষ। শুধু ছায়ায় হালকা কাজ।',
+  dust_y: 'বাতাসে ধুলো: হাঁপানি বা শ্বাসকষ্ট থাকলে মাস্ক পরুন।', dust_o: 'ধুলোময় বাতাস: বাইরে FFP2/N95 মাস্ক পরুন।',
+  dust_r: 'ধুলিঝড়: ভারী বাইরের কাজ বন্ধ করুন, ভেতরে যান, FFP2/N95 মাস্ক পরুন।', uvHigh: 'খুব কড়া রোদ (UV {u}): ত্বক ঢাকুন, টুপি পরুন এবং সানস্ক্রিন লাগান।',
+  coolVest: 'বিশ্রামের বিরতিতে কুলিং ভেস্ট পরুন।', coolSpot: 'ঠান্ডা হওয়ার জায়গা: {where}', personal: 'আপনার পরিকল্পনা {c} °C বেশি সতর্ক, আপনার নিজের চেক-ইন থেকে শেখা।',
+  pushOn: 'অ্যালার্ট চালু করুন', pushOk: 'অ্যালার্ট চালু আছে, অ্যাপ বন্ধ থাকলেও।', pushNo: 'অ্যালার্ট বন্ধ। ফোনের সেটিংসে এই অ্যাপের নোটিফিকেশন চালু করুন।',
+});
+Object.assign(I18N.ml, {
+  newWorker: 'ചൂടിൽ പുതിയത്: ദിവസം {d} / 5. ഇന്ന് നിങ്ങളുടെ സുരക്ഷിത ചൂട് സമയം {m} മിനിറ്റ്.', returning: '{a} ദിവസത്തിന് ശേഷം തിരിച്ചെത്തി: ദിവസം {d} / 4. ഇന്ന് നിങ്ങളുടെ സുരക്ഷിത ചൂട് സമയം {m} മിനിറ്റ്.',
+  expBar: 'ഇന്ന് ഉപയോഗിച്ച ചൂട് സമയം', capUsed: 'ഇന്നത്തെ സുരക്ഷിത ചൂട് സമയം തീർന്നു. തണലിൽ ലഘു ജോലി മാത്രം.',
+  dust_y: 'വായുവിൽ പൊടി: ആസ്ത്മയോ ശ്വാസതടസ്സമോ ഉണ്ടെങ്കിൽ മാസ്ക് ധരിക്കുക.', dust_o: 'പൊടി നിറഞ്ഞ വായു: പുറത്ത് FFP2/N95 മാസ്ക് ധരിക്കുക.',
+  dust_r: 'പൊടിക്കാറ്റ്: കനത്ത പുറംജോലി നിർത്തുക, അകത്തേക്ക് പോകുക, FFP2/N95 മാസ്ക് ധരിക്കുക.', uvHigh: 'വളരെ ശക്തമായ വെയിൽ (UV {u}): ചർമ്മം മൂടുക, തൊപ്പി ധരിക്കുക, സൺസ്ക്രീൻ പുരട്ടുക.',
+  coolVest: 'വിശ്രമ ഇടവേളകളിൽ കൂളിംഗ് വെസ്റ്റ് ധരിക്കുക.', coolSpot: 'തണുക്കാനുള്ള സ്ഥലം: {where}', personal: 'നിങ്ങളുടെ പദ്ധതി {c} °C കൂടുതൽ ജാഗ്രതയുള്ളതാണ്, നിങ്ങളുടെ ചെക്ക്-ഇന്നുകളിൽ നിന്ന് പഠിച്ചത്.',
+  pushOn: 'അലേർട്ടുകൾ ഓണാക്കുക', pushOk: 'ആപ്പ് അടച്ചാലും അലേർട്ടുകൾ ഓണാണ്.', pushNo: 'അലേർട്ടുകൾ തടഞ്ഞിരിക്കുന്നു. ഫോൺ ക്രമീകരണങ്ങളിൽ ഈ ആപ്പിന് അറിയിപ്പുകൾ അനുവദിക്കുക.',
+});
+Object.assign(I18N.ne, {
+  newWorker: 'गर्मीमा नयाँ: दिन {d} / 5। आज तपाईंको सुरक्षित गर्मी समय {m} मिनेट।', returning: '{a} दिनपछि फर्कनुभयो: दिन {d} / 4। आज तपाईंको सुरक्षित गर्मी समय {m} मिनेट।',
+  expBar: 'आज प्रयोग भएको गर्मी समय', capUsed: 'आजको सुरक्षित गर्मी समय सकियो। छायाँमा हल्का काम मात्र।',
+  dust_y: 'हावामा धुलो: दम वा सास फेर्न गाह्रो भए मास्क लगाउनुहोस्।', dust_o: 'धुलो भएको हावा: बाहिर FFP2/N95 मास्क लगाउनुहोस्।',
+  dust_r: 'धुलोको आँधी: भारी बाहिरी काम रोक्नुहोस्, भित्र जानुहोस्, FFP2/N95 मास्क लगाउनुहोस्।', uvHigh: 'धेरै कडा घाम (UV {u}): छाला ढाक्नुहोस्, टोपी लगाउनुहोस् र सनस्क्रिन लगाउनुहोस्।',
+  coolVest: 'आरामको समयमा कुलिङ भेस्ट लगाउनुहोस्।', coolSpot: 'चिसो हुने ठाउँ: {where}', personal: 'तपाईंको योजना {c} °C बढी सावधान छ, तपाईंकै चेक-इनबाट सिकिएको।',
+  pushOn: 'अलर्ट खोल्नुहोस्', pushOk: 'एप बन्द हुँदा पनि अलर्ट खुला छन्।', pushNo: 'अलर्ट बन्द छन्। फोनको सेटिङमा यो एपको सूचना अनुमति दिनुहोस्।',
+});
+Object.assign(I18N.tl, {
+  newWorker: 'Bago sa init: araw {d} ng 5. Ang ligtas mong oras sa init ngayon ay {m} min.', returning: 'Bumalik pagkatapos ng {a} araw: araw {d} ng 4. Ang ligtas mong oras sa init ngayon ay {m} min.',
+  expBar: 'Oras sa init na nagamit ngayon', capUsed: 'Ubos na ang ligtas mong oras sa init ngayon. Magaan na trabaho lang sa lilim.',
+  dust_y: 'May alikabok sa hangin: magsuot ng mask kung may hika o hirap huminga.', dust_o: 'Maalikabok na hangin: magsuot ng FFP2/N95 mask sa labas.',
+  dust_r: 'Bagyo ng alikabok: itigil ang mabigat na trabaho sa labas, pumasok sa loob, magsuot ng FFP2/N95 mask.', uvHigh: 'Napakatinding araw (UV {u}): takpan ang balat, magsuot ng sombrero at gumamit ng sunscreen.',
+  coolVest: 'Magsuot ng cooling vest habang nagpapahinga.', coolSpot: 'Lugar para magpalamig: {where}', personal: 'Mas maingat nang {c} °C ang plano mo, natutunan mula sa sarili mong mga check-in.',
+  pushOn: 'I-on ang mga alerto', pushOk: 'Naka-on ang mga alerto, kahit sarado ang app.', pushNo: 'Naka-block ang mga alerto. Payagan ang notifications ng app na ito sa settings ng telepono.',
+});
+
+// "Cool first, transport second": instructions for the buddy or bystanders at a suspected heat stroke.
+Object.assign(I18N.en, { cfts: 'Start cooling now: shade, soak them with cold water and fan, ice on the neck and armpits. The first-aider is coming. Cool first, transport second.' });
+Object.assign(I18N.hi, { cfts: 'अभी ठंडा करना शुरू करें: छाँव में ले जाएँ, ठंडे पानी से भिगोएँ और हवा करें, गर्दन और बगल पर बर्फ़ रखें। प्राथमिक उपचारकर्ता आ रहे हैं। पहले ठंडा करें, फिर अस्पताल ले जाएँ।' });
+Object.assign(I18N.ar, { cfts: 'ابدأ التبريد الآن: انقله إلى الظل، بلّله بالماء البارد وهوِّ عليه، ضع الثلج على الرقبة والإبطين. المسعف في الطريق. التبريد أولًا ثم النقل.' });
+Object.assign(I18N.ur, { cfts: 'ابھی ٹھنڈا کرنا شروع کریں: سائے میں لے جائیں، ٹھنڈے پانی سے بھگوئیں اور ہوا کریں، گردن اور بغلوں پر برف رکھیں۔ فرسٹ ایڈر آ رہا ہے۔ پہلے ٹھنڈا کریں، پھر اسپتال لے جائیں۔' });
+Object.assign(I18N.bn, { cfts: 'এখনই ঠান্ডা করা শুরু করুন: ছায়ায় নিন, ঠান্ডা পানিতে ভিজিয়ে বাতাস করুন, ঘাড় ও বগলে বরফ দিন। প্রাথমিক চিকিৎসক আসছেন। আগে ঠান্ডা করুন, তারপর হাসপাতালে নিন।' });
+Object.assign(I18N.ml, { cfts: 'ഇപ്പോൾ തണുപ്പിക്കാൻ തുടങ്ങുക: തണലിലേക്ക് മാറ്റുക, തണുത്ത വെള്ളത്തിൽ നനച്ച് വീശുക, കഴുത്തിലും കക്ഷത്തിലും ഐസ് വയ്ക്കുക. പ്രഥമശുശ്രൂഷകൻ വരുന്നു. ആദ്യം തണുപ്പിക്കുക, പിന്നെ ആശുപത്രിയിലേക്ക്.' });
+Object.assign(I18N.ne, { cfts: 'अहिले नै चिसो पार्न सुरु गर्नुहोस्: छायाँमा लैजानुहोस्, चिसो पानीले भिजाएर हावा लगाउनुहोस्, घाँटी र काखीमा बरफ राख्नुहोस्। प्राथमिक उपचारकर्ता आउँदै हुनुहुन्छ। पहिले चिसो पार्नुहोस्, त्यसपछि अस्पताल लैजानुहोस्।' });
+Object.assign(I18N.tl, { cfts: 'Simulan nang palamigin: dalhin sa lilim, basain ng malamig na tubig at paypayan, yelo sa leeg at kili-kili. Parating na ang first-aider. Palamigin muna, saka dalhin sa ospital.' });

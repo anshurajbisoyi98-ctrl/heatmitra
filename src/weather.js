@@ -47,6 +47,17 @@ async function fetchSite(site, replayDate) {
   if (!r.ok) throw new Error(`Open-Meteo HTTP ${r.status}`);
   const rows = toRows(await r.json());
   if (!rows.length) throw new Error('Open-Meteo returned no rows');
+  // Dust (PM10) and UV from the Open-Meteo air-quality API (CAMS). Optional: the plan works without it.
+  try {
+    const aq = new URLSearchParams({ latitude: site.lat, longitude: site.lon, hourly: 'pm10,uv_index', timezone: site.tz });
+    if (replayDate) { aq.set('start_date', q.get('start_date')); aq.set('end_date', q.get('end_date')); } else aq.set('forecast_days', '4');
+    const a = (await getJson(`https://air-quality-api.open-meteo.com/v1/air-quality?${aq}`)).hourly;
+    const byTime = new Map(a.time.map((t, i) => [t, i]));
+    for (const row of rows) {
+      const i = byTime.get(row.time);
+      if (i != null) { row.pm10 = a.pm10[i]; row.uv = a.uv_index[i]; }
+    }
+  } catch { /* air quality unavailable: heat plan only */ }
   return {
     siteId: site.id,
     mode: replayDate ? 'replay' : 'live',

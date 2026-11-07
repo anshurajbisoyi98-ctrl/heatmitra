@@ -19,7 +19,7 @@ main { max-width: 1180px; margin: 0 auto; padding: 16px; }
 .foot { text-align: center; color: var(--muted); font-size: 12px; padding: 24px 16px; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; }
 .card h2 { margin: 0 0 10px; font-size: 16px; }
-.grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); }
 .btn { border: 1px solid var(--line); background: var(--card); padding: 9px 14px; border-radius: 10px; cursor: pointer; }
 .btn:hover { border-color: var(--ink); }
 .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
@@ -110,6 +110,7 @@ table.list td, table.list th { padding: 7px 6px; border-bottom: 1px solid var(--
 .swatch { height: 56px; border-radius: 12px; border: 2px solid var(--line); font-weight: 700; color: #3b2a00; cursor: pointer; }
 .swatch:hover { border-color: var(--ink); }
 .rest-now { background: #e8f1ff; border-color: #9cc1ff; }
+.tag.new { background: #e8f1ff; border-color: #9cc1ff; color: #1d4f91; }
 .modal.brief { max-width: 640px; }
 .brief-list { font-size: 18px; line-height: 1.5; padding-inline-start: 22px; }
 .brief-list li { margin-bottom: 8px; }
@@ -137,3 +138,11 @@ table.list td, table.list th { padding: 7px 6px; border-bottom: 1px solid var(--
   .modal.brief { max-width: none; box-shadow: none; }
 }
 @media (max-width: 560px) { .brand small { display: none; } .counts b { font-size: 20px; } }
+.cfts { border: 2px solid #1d4f91; background: #eef4ff; border-radius: 12px; padding: 10px 12px; margin: 8px 0; }
+.cfts ol { margin: 6px 0; padding-inline-start: 20px; font-size: 13.5px; }
+.cfts li { margin-bottom: 6px; }
+.cfts li.done { color: var(--muted); }
+.cfts-clock, .cfts-line { font-weight: 700; color: #1d4f91; }
+.cfts-clock.late, .cfts-line.late { color: var(--red); }
+select { max-width: 100%; }
+#sv-head .row { min-width: 0; }
