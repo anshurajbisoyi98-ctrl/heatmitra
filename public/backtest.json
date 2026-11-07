@@ -1,0 +1,29 @@
+{
+  "site": "Abu Dhabi (Mussafah)",
+  "period": "2025-06-01 to 2025-09-30, 06:00–18:00",
+  "hours": 1464,
+  "days": 122,
+  "heavyBandShare": {
+    "green": 0.9,
+    "yellow": 6.1,
+    "orange": 32.7,
+    "red": 60.3
+  },
+  "pod": 93.1,
+  "far": 6.8,
+  "bandMatch": 88.2,
+  "underWarn": 6.1,
+  "overWarn": 5.7,
+  "workMinMAE": 3.3,
+  "outsideBanPct": 77.2,
+  "moderateDangerHoursPerDay": 10,
+  "heavyStopHoursPerDay": 7.2,
+  "leadMedianH": 4,
+  "stopTimingErrorMedianH": 1,
+  "hottest": {
+    "wbgt": 37,
+    "time": "2025-08-01T14:00"
+  },
+  "note": "Forecast = Open-Meteo historical forecast (short-range model output as issued); observed = ERA5 reanalysis, not on-site sensors. This checks the warning against weather conditions, not against health outcomes.",
+  "generatedAt": "2026-11-07T11:41:15.603Z"
+}

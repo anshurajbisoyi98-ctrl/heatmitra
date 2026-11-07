@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: heatmitra
+    runtime: node
+    plan: free
+    buildCommand: "echo no build step"
+    startCommand: node server.js
+    envVars:
+      - key: DEMO
+        value: "1"

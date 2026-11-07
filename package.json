@@ -1,0 +1,14 @@
+{
+  "name": "heatmitra",
+  "version": "0.1.0",
+  "description": "Heat-stress early warning and escalation for outdoor workers (Future Health Digital Innovation Challenge, Challenge 07)",
+  "main": "server.js",
+  "private": true,
+  "license": "UNLICENSED",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/",
+    "backtest": "node scripts/backtest.js"
+  }
+}

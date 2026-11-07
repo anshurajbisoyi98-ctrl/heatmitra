@@ -1,0 +1,18 @@
+{
+  "sites": [
+    { "id": "mussafah", "name": "Mussafah construction site, Abu Dhabi", "lat": 24.36, "lon": 54.5, "tz": "Asia/Dubai", "middayBan": true, "emergency": "998" },
+    { "id": "jebelali", "name": "Jebel Ali logistics yard, Dubai", "lat": 24.99, "lon": 55.06, "tz": "Asia/Dubai", "middayBan": true, "emergency": "998" },
+    { "id": "okhla", "name": "Okhla industrial area, Delhi", "lat": 28.53, "lon": 77.27, "tz": "Asia/Kolkata", "middayBan": false, "emergency": "112" }
+  ],
+  "defaultReplay": { "mussafah": "2025-06-10", "jebelali": "2025-06-10" },
+  "users": [
+    { "id": "w1", "role": "worker", "name": "Ravi Kumar", "lang": "hi", "siteId": "mussafah", "workload": "heavy", "clothing": "standard", "daysOnSite": 30 },
+    { "id": "w2", "role": "worker", "name": "Mohammed Aslam", "lang": "ur", "siteId": "mussafah", "workload": "moderate", "clothing": "standard", "daysOnSite": 3 },
+    { "id": "w3", "role": "worker", "name": "Joseph Varghese", "lang": "en", "siteId": "mussafah", "workload": "heavy", "clothing": "doublelayer", "daysOnSite": 20 },
+    { "id": "w4", "role": "worker", "name": "Ahmed Saleh", "lang": "ar", "siteId": "mussafah", "workload": "light", "clothing": "standard", "daysOnSite": 60 },
+    { "id": "w5", "role": "worker", "name": "Suresh Yadav", "lang": "hi", "siteId": "mussafah", "workload": "veryheavy", "clothing": "standard", "daysOnSite": 10 },
+    { "id": "w6", "role": "worker", "name": "Bikash Thapa", "lang": "en", "siteId": "mussafah", "workload": "moderate", "clothing": "polyolefin", "daysOnSite": 1 },
+    { "id": "s1", "role": "supervisor", "name": "Site supervisor", "siteId": "mussafah" },
+    { "id": "m1", "role": "medic", "name": "Site first-aider", "siteId": "mussafah" }
+  ]
+}

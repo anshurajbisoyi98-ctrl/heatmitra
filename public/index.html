@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#b4401f" />
+  <title>HeatMitra</title>
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><span class="logo">☀</span> HeatMitra <small>heat-stress early warning for outdoor workers</small></div>
+    <div class="top-right" id="topRight"></div>
+  </header>
+  <main id="app"><p class="muted pad">Loading…</p></main>
+  <div id="overlay" hidden></div>
+  <footer class="foot">Decision support, not a medical device. Weather: Open-Meteo (CC BY 4.0). Limits: NIOSH 2016, ACGIH clothing factors.</footer>
+  <script src="/heat.js"></script>
+  <script src="/i18n.js"></script>
+  <script src="/app.js"></script>
+  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});</script>
+</body>
+</html>

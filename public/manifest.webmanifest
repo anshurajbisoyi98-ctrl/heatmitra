@@ -1,0 +1,8 @@
+{
+  "name": "HeatMitra",
+  "short_name": "HeatMitra",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f3ee",
+  "theme_color": "#b4401f"
+}
