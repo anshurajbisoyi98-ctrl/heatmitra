@@ -67,7 +67,7 @@
       "id": "w3",
       "role": "worker",
       "name": "Joseph Varghese",
-      "lang": "en",
+      "lang": "ml",
       "siteId": "mussafah",
       "workload": "heavy",
       "clothing": "doublelayer",
@@ -97,11 +97,31 @@
       "id": "w6",
       "role": "worker",
       "name": "Bikash Thapa",
-      "lang": "en",
+      "lang": "ne",
       "siteId": "mussafah",
       "workload": "moderate",
       "clothing": "polyolefin",
       "daysOnSite": 1
+    },
+    {
+      "id": "w7",
+      "role": "worker",
+      "name": "Rahim Uddin",
+      "lang": "bn",
+      "siteId": "mussafah",
+      "workload": "heavy",
+      "clothing": "standard",
+      "daysOnSite": 45
+    },
+    {
+      "id": "w8",
+      "role": "worker",
+      "name": "Mark Santos",
+      "lang": "tl",
+      "siteId": "mussafah",
+      "workload": "moderate",
+      "clothing": "standard",
+      "daysOnSite": 14
     },
     {
       "id": "s1",

@@ -78,6 +78,21 @@ async function siteNow(site) {
   return { fc, day, idx, time: day[idx].time, minute: lp.minute };
 }
 
+// Next three days for heavy work (acclimatised, normal clothes): peak heat, STOP hours, best window.
+function outlookFor(site, fc, today) {
+  const dates = [...new Set(fc.hourly.map((r) => r.time.slice(0, 10)))].filter((d) => d > today).slice(0, 3);
+  return dates.map((d) => {
+    const hrs = fc.hourly.filter((r) => { const h = Number(r.time.slice(11, 13)); return r.time.startsWith(d) && h >= 5 && h <= 19; });
+    if (hrs.length < 10) return null;
+    const plan = Heat.assessDay(hrs, { workload: 'heavy', clothing: 'standard', daysOnSite: 30, calib: site.calib || 0 }, site.middayBan);
+    const peak = plan.reduce((b, p) => (p.wbgt > b.wbgt ? p : b), plan[0]);
+    return {
+      date: d, peak: peak.wbgt, peakTime: peak.time.slice(11, 16), stopHours: plan.filter((p) => p.band === 'red').length,
+      window: Heat.bestWindow(plan), bands: plan.map((p) => p.band),
+    };
+  }).filter(Boolean);
+}
+
 function profileOf(sh) {
   return { workload: sh.workload, clothing: sh.clothing, daysOnSite: sh.daysOnSite };
 }
@@ -124,15 +139,19 @@ function resolve(a, by, note) {
   log(by, 'alert_resolved', `${a.id} (${note})`);
 }
 
-function recordCheckin(sh, status, symptoms, by) {
+function recordCheckin(sh, status, symptoms, by, exertion = null) {
   sh.lastCheckin = now();
   sh.lastHeartbeat = now();
   const allowed = (symptoms || []).filter((s) => Heat.SYMPTOMS.includes(s));
-  checkins.push({ workerId: sh.workerId, at: now(), status, by });
+  checkins.push({ workerId: sh.workerId, at: now(), status, by, exertion });
   const open = openAlertFor(sh.workerId);
   if (status === 'ok') {
     if (open && open.stage !== 'medic') resolve(open, users[sh.workerId].name, 'worker confirmed OK');
-    return { action: 'continue' };
+    // Perceived exertion (Tikuisis et al. 2002): "very hard" gets rest advice; twice in a row asks the supervisor to check.
+    const twice = exertion === 'veryhard' && sh.lastExertion === 'veryhard';
+    if (exertion) sh.lastExertion = exertion;
+    if (twice && !openAlertFor(sh.workerId)) openAlert(sh, 'exertion', 'supervisor');
+    return { action: exertion === 'veryhard' ? 'exertion' : 'continue' };
   }
   const red = allowed.some((s) => Heat.RED_FLAGS.includes(s));
   const severity = red ? 'emergency' : 'review';
@@ -231,6 +250,10 @@ function metrics() {
       const taken = restTotals.taken + live.reduce((s, x) => s + x.restsTaken, 0);
       return due ? Math.round((taken / due) * 100) : null;
     })(),
+    veryHardPct: (() => {
+      const rated = checkins.filter((c) => c.exertion);
+      return rated.length ? Math.round((rated.filter((c) => c.exertion === 'veryhard').length / rated.length) * 100) : null;
+    })(),
     outcomes: Object.fromEntries(Object.keys(OUTCOMES).map((k) => [k, alerts.filter((a) => a.outcome === k).length])),
   };
 }
@@ -284,7 +307,10 @@ async function api(req, res, url) {
     const site = sites[url.searchParams.get('site')];
     if (!site) return send(res, 404, { error: 'no such site' });
     const sn = await siteNow(site);
-    return send(res, 200, { site, mode: sn.fc.mode, source: sn.fc.source, stale: sn.fc.stale, fetchedAt: sn.fc.fetchedAt, nowTime: sn.time, hourly: sn.day });
+    return send(res, 200, {
+      site, mode: sn.fc.mode, source: sn.fc.source, stale: sn.fc.stale, fetchedAt: sn.fc.fetchedAt, nowTime: sn.time, hourly: sn.day,
+      outlook: outlookFor(site, sn.fc, sn.time.slice(0, 10)),
+    });
   }
 
   if (m === 'GET' && p === '/api/heatmap') {
@@ -350,7 +376,8 @@ async function api(req, res, url) {
     const sh = shifts.get(u.id);
     if (!sh) return send(res, 409, { error: 'no active shift' });
     const b = await body(req);
-    return send(res, 200, recordCheckin(sh, b.status === 'unwell' ? 'unwell' : 'ok', b.symptoms, u.name));
+    const ex = ['easy', 'hard', 'veryhard'].includes(b.exertion) ? b.exertion : null;
+    return send(res, 200, recordCheckin(sh, b.status === 'unwell' ? 'unwell' : 'ok', b.symptoms, u.name, ex));
   }
   // Worker confirms they are taking the rest break the plan calls for.
   if (p === '/api/rest' && m === 'POST') {

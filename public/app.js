@@ -19,7 +19,7 @@
   const STAGES = ['worker', 'supervisor', 'medic'];
   const STAGE_LABEL = { worker: 'Worker', supervisor: 'Supervisor', medic: 'First-aider' };
   const OUTCOME_LABEL = { '': 'Outcome…', cramps: 'Heat cramps', exhaustion: 'Heat exhaustion', stroke: 'Suspected heat stroke', notheat: 'Not heat-related', falsealarm: 'False alarm / fine' };
-  const REASON = { checkin_due: 'Check-in due', no_signal: 'Phone signal lost', reported_unwell: 'Reported feeling unwell', high_strain: 'High heat strain (wearable)' };
+  const REASON = { checkin_due: 'Check-in due', no_signal: 'Phone signal lost', reported_unwell: 'Reported feeling unwell', high_strain: 'High heat strain (wearable)', exertion: 'Says work feels very hard (twice in a row)' };
 
   function t(key, vars) {
     const L = I18N[S.lang] || I18N.en;
@@ -235,7 +235,9 @@
   function showPrompt(a) {
     modal('prompt', `<div class="modal alarm" dir="${dir()}"><h1>${t('areyouok')}</h1><p>${t('tapok')}</p>
       <div class="row" style="flex-direction:column;gap:10px;align-items:stretch">
-      <button class="btn big ok" data-w="ok">${t('ok')}</button><button class="btn big warn" data-w="unwell">${t('unwell')}</button></div></div>`);
+      <button class="btn big ok" data-w="ok">${t('ok')}</button>
+      <div><b>${t('exAsk')}</b><div class="row ex-row" style="margin-top:6px">${['easy', 'hard', 'veryhard'].map((e, i) => `<button class="btn ex-${e}" data-ex="${e}">${['🙂', '😓', '🥵'][i]} ${t(`ex_${e}`)}</button>`).join('')}</div></div>
+      <button class="btn big warn" data-w="unwell">${t('unwell')}</button></div></div>`);
     if (W.spoken !== a.id) { W.spoken = a.id; say(`${t('areyouok')} ${t('tapok')}`); if (navigator.vibrate) navigator.vibrate([400, 200, 400, 200, 400]); }
   }
 
@@ -257,17 +259,24 @@
     say(`${t('restTitle')}. ${t('restBody')}`);
   }
 
-  async function checkin(status, symptoms = []) {
+  function showExRest() {
+    modal('rest', `<div class="modal" dir="${dir()}"><h1>🥵 ${t('restTitle')}</h1><p style="font-size:18px">${t('exRest')}</p><button class="btn big" data-w="close">${t('close')}</button></div>`);
+    say(`${t('restTitle')}. ${t('exRest')}`);
+  }
+
+  async function checkin(status, symptoms = [], exertion = null) {
     closeModal();
     const emergencyNo = (W.me && W.me.site && W.me.site.emergency) || '998';
     try {
-      const r = await api('/api/checkin', { method: 'POST', body: { status, symptoms } });
+      const r = await api('/api/checkin', { method: 'POST', body: { status, symptoms, exertion } });
       if (r.action === 'emergency') showEmergency(r.emergency);
       else if (r.action === 'rest') showRest();
+      else if (r.action === 'exertion') showExRest();
     } catch (e) {
       if (e.http) return;
       const q = local.get('hm_queue', []);
-      q.push({ status, symptoms, at: Date.now() });
+      q.push({ status, symptoms, exertion, at: Date.now() });
+      if (status === 'ok' && exertion === 'veryhard') showExRest();
       local.set('hm_queue', q);
       // Red-flag advice works with no network at all.
       if (status === 'unwell') { if (symptoms.some((s) => Heat.RED_FLAGS.includes(s))) showEmergency(emergencyNo); else showRest(); }
@@ -372,6 +381,7 @@
     if (S.user.role === 'supervisor') {
       app.innerHTML = `<div id="sv-head"></div><div class="grid">
         <div class="card" style="grid-column:1/-1" id="sv-plan"></div>
+        <div class="card" style="grid-column:1/-1" id="sv-outlook"></div>
         <div class="card" style="grid-column:1/-1" id="sv-map"></div>
         <div class="card" id="sv-crew"></div><div class="card" id="sv-alerts"></div>
         <div class="card" id="sv-sched"></div><div class="card" id="sv-logi"></div>
@@ -407,7 +417,27 @@
     drawPlan();
     drawSched();
     drawLogi();
+    drawOutlook();
     loadHeatmap();
+  }
+
+  // ---------------- 3-day outlook ----------------
+  const dayName = (d) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en', { weekday: 'short', timeZone: 'UTC' });
+  function drawOutlook() {
+    const el = $('#sv-outlook');
+    if (!el) return;
+    const o = (V.fc && V.fc.outlook) || [];
+    if (!o.length) { el.innerHTML = '<h2>Next 3 days</h2><p class="muted small">No outlook for this day (the site is running on saved data).</p>'; return; }
+    const worst = o.reduce((b, d) => (d.stopHours > b.stopHours ? d : b), o[0]);
+    const win = (w) => (w ? `${w.start.slice(11, 16)}–${pad2(Number(w.end.slice(11, 13)) + 1)}:00` : 'none');
+    el.innerHTML = `<h2>Next 3 days: heavy work</h2>
+      ${worst.stopHours >= 6 ? `<div class="notice rise">Heavy work must stop for <b>${worst.stopHours} hours</b> on ${dayName(worst.date)} ${worst.date.slice(5)}. Plan an early or night shift, or move heavy tasks to another day.</div>` : ''}
+      <div class="outlook">${o.map((d) => `<div class="day">
+        <div class="row" style="justify-content:space-between"><b>${dayName(d.date)}</b><span class="muted small">${d.date.slice(5)}</span></div>
+        <div style="margin:6px 0"><span class="pill" style="background:${wbgtColor(d.peak)}">${d.peak.toFixed(1)} °C</span> <span class="small muted">peak WBGT, ${d.peakTime}</span></div>
+        <div class="strip" title="05:00 to 19:00">${d.bands.map((b) => `<i class="c-${b}"></i>`).join('')}</div>
+        <div class="small muted strip-l"><span>05</span><span>12</span><span>19</span></div>
+        <div class="small"><b>${d.stopHours} h</b> STOP · best window ${win(d.window)}</div></div>`).join('')}</div>`;
   }
 
   function site() { return V.config.sites.find((s) => s.id === V.site); }
@@ -530,7 +560,8 @@
   }
   function openBriefing(lang = V.brLang || 'en') {
     V.brLang = lang;
-    const langs = Object.entries(I18N.langs).map(([k, v]) => `<option value="${k}" ${k === lang ? 'selected' : ''}>${v}</option>`).join('');
+    const langs = Object.entries(I18N.langs).filter(([k]) => I18N[k] && I18N[k].br_title)
+      .map(([k, v]) => `<option value="${k}" ${k === lang ? 'selected' : ''}>${v}</option>`).join('');
     modal('brief', `<div class="modal brief" dir="${I18N.rtl.includes(lang) ? 'rtl' : 'ltr'}">
       <div class="row noprint" style="justify-content:space-between"><select id="brLang" class="btn sm" aria-label="Briefing language">${langs}</select>
         <span class="row"><button class="btn sm" data-c="brSay">🔊 Read aloud</button><button class="btn sm" data-c="brPrint">🖨 Print</button><button class="btn sm" data-w="close">✕</button></span></div>
@@ -603,7 +634,8 @@
       ${m ? `<div class="kpis"><div><b>${m.alertsOpened}</b>alerts</div><div><b>${k(m.checkinPromptResponseRate, '%')}</b>prompts answered by worker</div>
         <div><b>${k(m.medianResponseSec, 's')}</b>median time to a human response</div><div><b>${m.reachedFirstAider}</b>reached first-aider</div>
         <div><b>${m.signalLost}</b>signal-lost alerts</div><div><b>${m.emergencies}</b>emergencies</div>
-        <div><b>${k(m.restAdherence, '%')}</b>rest breaks taken (whole crew, never per worker)</div></div>
+        <div><b>${k(m.restAdherence, '%')}</b>rest breaks taken (whole crew, never per worker)</div>
+        <div><b>${k(m.veryHardPct, '%')}</b>check-ins where work felt very hard</div></div>
         ${m.outcomes && Object.values(m.outcomes).some(Boolean) ? `<p class="small">Cases closed by the first-aider: ${Object.entries(m.outcomes).filter(([, n]) => n).map(([key, n]) => `${OUTCOME_LABEL[key]} <b>${n}</b>`).join(' · ')}</p>` : ''}` : ''}
       ${V.bt ? `<h2 style="margin-top:14px">Back-test: ${esc(V.bt.site)}, ${esc(V.bt.period)}</h2>
         <div class="kpis"><div><b>${V.bt.pod}%</b>danger hours warned (hit rate)</div><div><b>${V.bt.far}%</b>false-alarm ratio</div>
@@ -827,6 +859,7 @@
       if (b.dataset.sym) return b.classList.toggle('on');
       const w = b.dataset.w;
       const c0 = b.dataset.c;
+      if (b.dataset.ex) return checkin('ok', [], b.dataset.ex);
       if (w === 'ok') return checkin('ok');
       if (w === 'unwell') return openSymptoms();
       if (w === 'close') return closeModal();

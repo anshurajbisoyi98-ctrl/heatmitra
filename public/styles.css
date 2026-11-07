@@ -113,6 +113,15 @@ table.list td, table.list th { padding: 7px 6px; border-bottom: 1px solid var(--
 .modal.brief { max-width: 640px; }
 .brief-list { font-size: 18px; line-height: 1.5; padding-inline-start: 22px; }
 .brief-list li { margin-bottom: 8px; }
+.ex-row .btn { flex: 1; padding: 12px 6px; font-weight: 700; }
+.ex-easy { border-color: var(--green); } .ex-hard { border-color: var(--orange); } .ex-veryhard { border-color: var(--red); }
+.outlook { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.outlook .day { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+.pill { display: inline-block; padding: 3px 10px; border-radius: 99px; font-weight: 800; font-size: 18px; color: #1d1b19; }
+.strip { display: grid; grid-template-columns: repeat(15, 1fr); gap: 2px; margin: 8px 0 2px; }
+.strip i { display: block; height: 14px; border-radius: 2px; }
+.strip i.c-green { background: #8fd19e; } .strip i.c-yellow { background: #f5d76e; } .strip i.c-orange { background: #f39c4a; } .strip i.c-red { background: #d64541; }
+.strip-l { display: flex; justify-content: space-between; }
 @media print {
   body * { visibility: hidden; }
   #overlay, #overlay * { visibility: visible; }

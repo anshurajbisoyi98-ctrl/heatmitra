@@ -13,7 +13,7 @@ Heat strain in construction and logistics builds quietly and can turn into heat 
 | Challenge requirement | How HeatMitra meets it |
 |---|---|
 | Dynamic heat-risk assessment | Hourly site forecast (temperature, humidity, solar radiation, wind) → estimated WBGT → NIOSH limit for this worker's task, clothing and acclimatisation → band and work/rest minutes |
-| Clear, graded, multilingual warnings | Four bands (Safe / Caution / Take breaks / Stop) shown with colour, an icon, words and voice. English, Hindi, Arabic and Urdu. Every band has a concrete action: water, buddy, work/rest plan, stop and move to shade, emergency |
+| Clear, graded, multilingual warnings | Four bands (Safe / Caution / Take breaks / Stop) shown with colour, an icon, words and voice. English, Hindi, Arabic, Urdu, Bengali, Malayalam, Nepali and Tagalog. Every band has a concrete action: water, buddy, work/rest plan, stop and move to shade, emergency |
 | Earlier warning | Advance notice of the next rise ("from 11:00 risk rises to STOP, finish heavy work before then"). The supervisor planner shows the whole day at the 06:00 briefing |
 | Worker-first governance | Consent screen; symptoms go only to the first-aider and only with consent; no GPS; supervisors see bands and check-in status, never symptoms; no endpoint returns one worker's history; 24 h retention; audit log |
 | Field-ready, safe fallback | The risk engine runs on the phone too; the last plan is cached; check-ins queue offline; red-flag advice and the emergency call button work with no network. The server serves cached weather if Open-Meteo is down. If a phone goes silent, the server escalates |
@@ -29,6 +29,9 @@ Heat strain in construction and logistics builds quietly and can turn into heat 
 | Case outcomes | The first-aider closes each case as heat cramps, heat exhaustion, suspected heat stroke, not heat-related, or false alarm. These feed the "heat-related symptoms or incidents" measure |
 | Water and shade logistics | From today's plan: litres of cool water, 19-litre jugs, shade places needed at once in the worst hour, and hours where moderate work must stop, for any crew size and shift |
 | Morning briefing (toolbox talk) | One click turns today's plan into a short safety briefing in English, Hindi, Arabic or Urdu: peak heat, the best window for heavy work, when heavy work stops, the midday ban, water, rest, new workers, buddy checks and the emergency number. It can be read aloud or printed for the 06:00 crew meeting |
+| Perceived exertion | The "Are you OK?" prompt also asks "How hard does your work feel?" (🙂 easy / 😓 hard / 🥵 very hard). "Very hard" gets 10 minutes of rest advice; two in a row alerts the supervisor to check on the worker. This is the perceptual side of heat strain (Tikuisis et al. 2002) that physiological indices alone can miss. Crew-level share of "very hard" check-ins is a measure |
+| 3-day outlook | For each of the next three days: peak WBGT, hours where heavy work must stop, the best window, and an hour-by-hour strip. Days with 6 or more STOP hours are flagged so supervisors can plan early or night shifts in advance. In replay mode it uses the following three real days |
+| Eight worker languages | English, Hindi, Arabic, Urdu, Bengali, Malayalam, Nepali and Tagalog, the largest migrant workforces on Gulf sites, with voice where the phone has it. An automated test checks every language has every core string with the same placeholders. The morning briefing is in the first four. All translations need review by native speakers |
 | Safety and productivity measures | Live: alerts, prompt response rate, median time to a human response, cases that reached the first-aider, signal-lost alerts, emergencies. Back-test: hit rate, false alarms, under-warning, lead time, stop hours per day |
 
 ### Escalation ladder
@@ -108,7 +111,7 @@ No personal data was collected. The organisers provided no data.
 - WBGT is **estimated** from ~10 km gridded weather, not measured on site. The globe-temperature term is a heuristic, not the Liljegren model, and does not account for local radiant sources (asphalt, steel, machinery).
 - The back-test checks the warning against **weather**, not health outcomes. ERA5 is reanalysis, not a station. The historical-forecast archive is close to same-day, so true day-ahead skill will be lower.
 - No wearable or physiological signals yet. Personal risk uses task, clothing and acclimatisation only.
-- Translations are short, simple phrases written for the prototype. They need review by native speakers before use with workers. Voice depends on the device's text-to-speech voices.
+- Translations (eight languages) are short, simple phrases written for the prototype. They need review by native speakers before use with workers. Voice depends on the device's text-to-speech voices.
 - In-memory storage, demo sign-in, no rate limiting: this is a prototype, not production.
 - Frequent check-ins in the Stop band could cause alert fatigue; the intervals need tuning with workers.
 

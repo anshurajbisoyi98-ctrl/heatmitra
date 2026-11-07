@@ -22,7 +22,7 @@ Deploy: `Dockerfile` and `render.yaml` are included (single process, `PORT` env 
 
 ## 3-minute demo
 
-1. **Tab 1:** sign in as **Ravi Kumar** (worker, Hindi). Tick consent, start the shift. You see the band (STOP), this hour's work/rest plan, an advance warning and the check-in timer. Switch language at the top (English, हिन्दी, العربية, اردو).
+1. **Tab 1:** sign in as **Ravi Kumar** (worker, Hindi). Tick consent, start the shift. You see the band (STOP), this hour's work/rest plan, an advance warning and the check-in timer. Switch language at the top: eight worker languages (English, हिन्दी, العربية, اردو, বাংলা, മലയാളം, नेपाली, Tagalog).
 2. **Tab 2:** sign in as **Site supervisor**. The planner shows every hour of the day by task type, and the best window for heavy work. The site replays 10 Jun 2025 (real ERA5 weather) at today's clock time; press **Live** for today's forecast.
 3. Press **Add simulated crew**, then **Simulate going silent** on Mohammed. About 30 s later a "phone signal lost" alert appears. If nobody acknowledges it, it moves to the first-aider on its own.
 4. Back in tab 1, wait for **"Are you OK?"** (about 40 s in the red band). Tap **I feel unwell**, then pick *Confused*. The worker gets the emergency screen with a call button. The supervisor sees "emergency" but no symptoms.
@@ -43,6 +43,9 @@ Deploy: `Dockerfile` and `render.yaml` are included (single process, `PORT` env 
    - **Water and shade** works out the litres of water and shade places the crew needs.
    - The **rule selector** switches between Gulf country rules. Pick the **Lusail (Qatar)** site to see Qatar's 10:00–15:30 window and the 32.1 °C stop rule.
 10. **First-aider:** close each case with an outcome (cramps, exhaustion, suspected heat stroke…). Outcomes, and the crew's rest-break adherence, appear in the supervisor's safety measures.
+
+11. When "Are you OK?" appears, answer **🥵 Very hard** twice: the worker gets rest advice and the supervisor gets a "work feels very hard" alert.
+12. The supervisor's **Next 3 days** card shows heavy-work STOP hours and best windows ahead, and flags hard days.
 
 The research behind these features is in `docs/RESEARCH.md`.
 

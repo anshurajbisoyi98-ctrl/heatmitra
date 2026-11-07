@@ -54,12 +54,15 @@ A short, time-boxed literature scan, done on the challenge day. Google Scholar b
 ### 6. Rest-break adherence (built)
 - **What:** the challenge asks teams to report "adherence to recommended controls". The worker app runs the NIOSH work/rest cycle and the worker confirms each rest break. The supervisor sees adherence for the whole crew only, never per worker, because individual figures could be used for discipline.
 
+### 7. Perceived exertion (built)
+- **Source:** Tikuisis, McLellan & Selkirk, *Perceptual versus physiological heat strain during exercise-heat stress*, Med Sci Sports Exerc 34 (2002), which proposed a perceptual strain index alongside PSI. Recent critiques of PSI also argue for adding perception.
+- **In HeatMitra:** a three-face "how hard does your work feel?" answer on each check-in. "Very hard" gets rest advice, and two in a row alert the supervisor. The crew-level share of "very hard" answers is a measure.
+
 ## Found, not built yet (roadmap)
 
 - **Thermal Work Limit (TWL):**
   - Brake & Bates; tested on UAE construction sites, where one study found it more useful than WBGT for well-hydrated, self-paced workers.
   - It needs a heat-balance model and would be a second index alongside WBGT.
-- **Perceived exertion:** adding a quick "how hard does it feel?" check-in, as the newer critiques of PSI suggest.
 
 ## Sources
 

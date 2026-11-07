@@ -34,11 +34,11 @@ function toRows(j) {
 async function fetchSite(site, replayDate) {
   const q = new URLSearchParams({ latitude: site.lat, longitude: site.lon, hourly: HOURLY, timezone: site.tz });
   let base = 'https://api.open-meteo.com/v1/forecast';
-  if (replayDate) {
+  if (replayDate) { // the replay day plus the next 3, for the outlook
     base = 'https://archive-api.open-meteo.com/v1/archive';
     q.set('start_date', replayDate);
-    q.set('end_date', replayDate);
-  } else q.set('forecast_days', '2');
+    q.set('end_date', new Date(Date.parse(`${replayDate}T00:00:00Z`) + 3 * 864e5).toISOString().slice(0, 10));
+  } else q.set('forecast_days', '4');
   let r = await fetch(`${base}?${q}`, { signal: AbortSignal.timeout(8000) });
   if (r.status === 429) { // shared hosting IPs get rate-limited; one polite retry
     await new Promise((ok) => setTimeout(ok, 1500));
