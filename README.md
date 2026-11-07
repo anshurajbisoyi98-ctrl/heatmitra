@@ -47,6 +47,10 @@ Deploy: `Dockerfile` and `render.yaml` are included (single process, `PORT` env 
 11. When "Are you OK?" appears, answer **🥵 Very hard** twice: the worker gets rest advice and the supervisor gets a "work feels very hard" alert.
 12. The supervisor's **Next 3 days** card shows heavy-work STOP hours and best windows ahead, and flags hard days.
 
+13. **Buddy check:** sign Ravi in, start his shift, then in the supervisor tab add the simulated crew and press **Simulate going silent** on Mohammed (Ravi's buddy). About 30 s later Ravi's phone shows "Check on Mohammed now".
+14. **SMS fallback:** in the supervisor console's phone panel, tap **START**, then **1** or **2**. Abdul gets every message in Bengali, and "2" alerts the first-aider.
+15. **📄 Report** in the supervisor header gives the crew-level HSE report: print it or download it as CSV.
+
 The research behind these features is in `docs/RESEARCH.md`.
 
 ## Layout

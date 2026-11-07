@@ -32,13 +32,16 @@ Heat strain in construction and logistics builds quietly and can turn into heat 
 | Perceived exertion | The "Are you OK?" prompt also asks "How hard does your work feel?" (🙂 easy / 😓 hard / 🥵 very hard). "Very hard" gets 10 minutes of rest advice; two in a row alerts the supervisor to check on the worker. This is the perceptual side of heat strain (Tikuisis et al. 2002) that physiological indices alone can miss. Crew-level share of "very hard" check-ins is a measure |
 | 3-day outlook | For each of the next three days: peak WBGT, hours where heavy work must stop, the best window, and an hour-by-hour strip. Days with 6 or more STOP hours are flagged so supervisors can plan early or night shifts in advance. In replay mode it uses the following three real days |
 | Eight worker languages | English, Hindi, Arabic, Urdu, Bengali, Malayalam, Nepali and Tagalog, the largest migrant workforces on Gulf sites, with voice where the phone has it. An automated test checks every language has every core string with the same placeholders. The morning briefing is in the first four. All translations need review by native speakers |
+| Buddy system | Workers are paired, as NIOSH recommends. When someone doesn't answer a check-in or their phone goes silent, their buddy's phone gets "Check on {name} now" first, read aloud. The buddy taps "they're OK" (case closed) or "they need help" (straight to the first-aider). The buddy sees only the name and that they aren't answering, nothing clinical. If the buddy is unavailable or doesn't answer, it moves on to the supervisor. Ladder: worker → buddy → supervisor → first-aider |
+| SMS fallback for basic phones | Workers without smartphones text START, 1 (OK), 2 (unwell) or STOP. Check-in prompts and risk changes are texted in the worker's language, and the same ladder applies. The webhook `/api/sms/inbound` accepts SMS-gateway (Twilio-style) form-encoded From/Body and needs a shared secret in production. Outgoing texts can be bridged to a gateway via `SMS_WEBHOOK_URL`. The console has a phone simulator for the demo |
+| HSE / regulator report | One click gives a printable report or CSV of crew-level figures: hours by band per task type, alerts by reason, buddy checks, first-aider cases and outcomes, response time, rest adherence and perceived exertion. No names; counts from 1 to 4 are shown as "<5" |
 | Safety and productivity measures | Live: alerts, prompt response rate, median time to a human response, cases that reached the first-aider, signal-lost alerts, emergencies. Back-test: hit rate, false alarms, under-warning, lead time, stop hours per day |
 
 ### Escalation ladder
 
 ```
-check-in due ─► worker "Are you OK?" ─(20 s demo / 90 s real)─► supervisor ─(25 s / 120 s)─► first-aider
-phone silent ─────────────────────────────────────────────────► supervisor ─────────────► first-aider
+check-in due ─► worker "Are you OK?" ─(20 s demo / 90 s real)─► buddy ─(20 s / 120 s)─► supervisor ─(25 s / 120 s)─► first-aider
+phone silent ───────────────────────────────────────────────► buddy ───────────────────► supervisor ─────────────► first-aider
 red-flag symptom (confused, fainted, hot dry skin, vomiting) ──────────────────────────► first-aider (emergency)
 ```
 

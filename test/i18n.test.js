@@ -19,6 +19,7 @@ const CORE = [
   'emTitle', 'emBody', 'call', 'restTitle', 'restBody', 'offline', 'endShift', 'close', 'notMedical',
   'hyd', 'hydAsk', 'hyd_ok', 'hyd_mid', 'hyd_bad', 'hydNote', 'restNow', 'restBtn', 'resting', 'nextRest',
   'exAsk', 'ex_easy', 'ex_hard', 'ex_veryhard', 'exRest',
+  'buddyTitle', 'buddyBody', 'buddyOk', 'buddyHelp', 'yourBuddy', 'smsReply', 'smsStart', 'smsEnd',
 ];
 const holes = (s) => (s.match(/\{\w+\}/g) || []).sort().join(',');
 

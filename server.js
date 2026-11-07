@@ -21,8 +21,22 @@ const PORT = Number(process.env.PORT || 3000);
 const DEMO = process.env.DEMO !== '0';
 // Seconds. In demo mode one check-in minute lasts 2 s, so a red-band 20-min check-in comes every 40 s.
 const T = DEMO
-  ? { checkinScale: 2, workerStage: 20, supervisorStage: 25, heartbeatTimeout: 30, heartbeatEvery: 10 }
-  : { checkinScale: 60, workerStage: 90, supervisorStage: 120, heartbeatTimeout: 120, heartbeatEvery: 30 };
+  ? { checkinScale: 2, workerStage: 20, buddyStage: 20, supervisorStage: 25, heartbeatTimeout: 30, heartbeatEvery: 10 }
+  : { checkinScale: 60, workerStage: 90, buddyStage: 120, supervisorStage: 120, heartbeatTimeout: 120, heartbeatEvery: 30 };
+
+// Worker-language strings on the server too, for SMS to basic phones.
+const I18N = (() => {
+  const ctx = require('node:vm').createContext({});
+  ctx.window = ctx;
+  require('node:vm').runInContext(require('fs').readFileSync(require('path').join(__dirname, 'public', 'i18n.js'), 'utf8'), ctx);
+  return ctx.I18N;
+})();
+function tr(lang, key, vars) {
+  const L = I18N[lang] || I18N.en;
+  let s = L[key] ?? I18N.en[key] ?? key;
+  if (vars) for (const k in vars) s = s.replace(`{${k}}`, vars[k]);
+  return s;
+}
 const RETAIN_MS = 24 * 3600 * 1000;
 
 const sites = Object.fromEntries(seed.sites.map((s) => [s.id, { ...s, replayDate: seed.defaultReplay[s.id] || null }]));
@@ -108,6 +122,36 @@ async function workerView(sh) {
   return { site, sn, plan, current, rise: Heat.nextRise(plan, sn.idx) };
 }
 
+// The worker's buddy, if they are on shift, reachable and not in trouble themselves.
+function buddyFor(sh) {
+  const bid = users[sh.workerId].buddy;
+  const b = bid && shifts.get(bid);
+  if (!b || b.silent || users[bid].channel === 'sms') return null;
+  if (now() - b.lastHeartbeat > T.heartbeatTimeout * 1000 || openAlertFor(bid)) return null;
+  return b;
+}
+
+// SMS for workers with basic phones. Logged in an outbox; also POSTed to SMS_WEBHOOK_URL if set (gateway bridge).
+const outbox = [];
+function sendSms(workerId, text) {
+  const w = users[workerId];
+  if (!w || !w.phone) return;
+  outbox.push({ phone: w.phone, text, at: now(), dir: 'out' });
+  if (outbox.length > 300) outbox.shift();
+  if (process.env.SMS_WEBHOOK_URL) {
+    fetch(process.env.SMS_WEBHOOK_URL, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ to: w.phone, text }) }).catch(() => {});
+  }
+}
+
+function endShift(workerId, by) {
+  const ended = shifts.get(workerId);
+  if (ended) { restTotals.due += ended.restsDue; restTotals.taken += ended.restsTaken; }
+  shifts.delete(workerId);
+  const a = openAlertFor(workerId);
+  if (a && a.stage !== 'medic') resolve(a, by, 'shift ended');
+  log(by, 'shift_ended', users[workerId].name);
+}
+
 function openAlertFor(workerId) {
   return alerts.find((a) => a.workerId === workerId && a.status === 'open');
 }
@@ -120,6 +164,10 @@ function openAlert(sh, reason, stage, extra = {}) {
     openedAt: now(), stageAt: now(), firstHumanAt: null, history: [{ stage, at: now(), by: 'system', note: reason }],
   };
   alerts.push(a);
+  if (reason === 'checkin_due' && users[sh.workerId].channel === 'sms') {
+    const L = users[sh.workerId].lang;
+    sendSms(sh.workerId, `HeatMitra: ${tr(L, 'areyouok')} ${tr(L, 'smsReply')}`);
+  }
   log('system', 'alert_opened', `${a.id} ${users[sh.workerId].name} ${reason} -> ${stage}`);
   return a;
 }
@@ -170,13 +218,19 @@ function recordCheckin(sh, status, symptoms, by, exertion = null) {
 async function sweep() {
   const t = now();
   for (const sh of shifts.values()) {
-    if (sh.simulated && !sh.silent) sh.lastHeartbeat = t;
+    const isSms = users[sh.workerId].channel === 'sms';
+    if ((sh.simulated && !sh.silent) || isSms) sh.lastHeartbeat = t; // basic phones have no app heartbeat
     let open = openAlertFor(sh.workerId);
     if (!open && t - sh.lastHeartbeat > T.heartbeatTimeout * 1000) {
-      openAlert(sh, 'no_signal', 'supervisor');
+      openAlert(sh, 'no_signal', buddyFor(sh) ? 'buddy' : 'supervisor');
       continue;
     }
     try { await workerView(sh); } catch { continue; }
+    if (isSms && sh.smsBand !== sh.band) { // tell basic-phone workers when their risk changes
+      sh.smsBand = sh.band;
+      const L = users[sh.workerId].lang;
+      sendSms(sh.workerId, `HeatMitra: ${tr(L, `b_${sh.band}`)}. ${tr(L, `a_${sh.band}`)}`);
+    }
     // Count each rest break the plan calls for; simulated workers take most of them.
     const cyc = 60 * T.checkinScale * 1000;
     const ci = Math.floor((t - sh.startedAt) / cyc);
@@ -194,8 +248,16 @@ async function sweep() {
   for (const a of alerts) {
     if (a.status !== 'open') continue;
     const el = (t - a.stageAt) / 1000;
-    if (a.stage === 'worker' && el > T.workerStage) advance(a, 'supervisor', 'system', 'no response from worker');
-    else if (a.stage === 'supervisor' && el > T.supervisorStage) advance(a, 'medic', 'system', 'no response from supervisor');
+    if (a.stage === 'worker' && el > T.workerStage) {
+      const sh = shifts.get(a.workerId);
+      const b = sh && buddyFor(sh);
+      if (b) advance(a, 'buddy', 'system', `no response from worker; asking buddy ${users[b.workerId].name}`);
+      else advance(a, 'supervisor', 'system', 'no response from worker');
+    } else if (a.stage === 'buddy') {
+      const bsh = shifts.get(users[a.workerId].buddy);
+      if (bsh && bsh.simulated && !bsh.silent && el > 6) resolve(a, users[bsh.workerId].name, 'buddy checked: worker OK');
+      else if (el > T.buddyStage) advance(a, 'supervisor', 'system', 'no response from buddy');
+    } else if (a.stage === 'supervisor' && el > T.supervisorStage) advance(a, 'medic', 'system', 'no response from supervisor');
   }
   const cutoff = t - RETAIN_MS; // retention: drop everything older than 24 h
   while (checkins.length && checkins[0].at < cutoff) checkins.shift();
@@ -241,6 +303,8 @@ function metrics() {
     reachedFirstAider: alerts.filter((a) => a.history.some((h) => h.stage === 'medic')).length,
     emergencies: alerts.filter((a) => a.severity === 'emergency').length,
     signalLost: alerts.filter((a) => a.reason === 'no_signal').length,
+    byReason: Object.fromEntries(['checkin_due', 'no_signal', 'reported_unwell', 'high_strain', 'exertion'].map((r) => [r, alerts.filter((a) => a.reason === r).length])),
+    buddyChecks: alerts.filter((a) => a.history.some((h) => h.stage === 'buddy')).length,
     checkinPromptResponseRate: prompted.length ? Math.round((answered.length / prompted.length) * 100) : null,
     medianResponseSec: resp.length ? Math.round(resp[Math.floor(resp.length / 2)]) : null,
     checkins: checkins.length,
@@ -271,7 +335,12 @@ function body(req) {
   return new Promise((ok, fail) => {
     let s = '';
     req.on('data', (c) => { s += c; if (s.length > 10000) { fail(new Error('too large')); req.destroy(); } });
-    req.on('end', () => { try { ok(s ? JSON.parse(s) : {}); } catch { fail(new Error('bad json')); } });
+    req.on('end', () => {
+      try {
+        if ((req.headers['content-type'] || '').includes('application/x-www-form-urlencoded')) return ok(Object.fromEntries(new URLSearchParams(s)));
+        ok(s ? JSON.parse(s) : {});
+      } catch { fail(new Error('bad json')); }
+    });
   });
 }
 
@@ -293,7 +362,7 @@ async function api(req, res, url) {
   if (m === 'GET' && p === '/api/config') return send(res, 200, { demo: DEMO, timing: T, sites: Object.values(sites) });
   if (m === 'GET' && p === '/api/users') {
     if (!DEMO) return send(res, 404, { error: 'demo only' });
-    return send(res, 200, seed.users.map(({ id, role, name, lang }) => ({ id, role, name, lang })));
+    return send(res, 200, seed.users.map(({ id, role, name, lang, channel, phone }) => ({ id, role, name, lang, channel: channel || 'app', phone })));
   }
   if (m === 'POST' && p === '/api/login') {
     const b = await body(req);
@@ -349,6 +418,8 @@ async function api(req, res, url) {
       source: v.sn.fc.source, stale: v.sn.fc.stale, nowTime: v.sn.time,
       current: v.current, rise: v.rise, plan: v.plan,
       nextCheckinAt: v.current.checkinMin ? sh.lastCheckin + v.current.checkinMin * T.checkinScale * 1000 : null,
+      buddy: u.buddy ? { name: users[u.buddy].name } : null,
+      buddyTask: (() => { const ba = u.buddy && openAlertFor(u.buddy); return ba && ba.stage === 'buddy' ? { id: ba.id, name: users[u.buddy].name } : null; })(),
       alert: a ? { id: a.id, stage: a.stage, reason: a.reason, severity: a.severity } : null,
       rest: restInfo(sh),
       serverTime: now(),
@@ -357,12 +428,7 @@ async function api(req, res, url) {
   if (p === '/api/shift/start' && m === 'POST') { need(u, 'worker'); startShift(u, await body(req)); return send(res, 200, { ok: true }); }
   if (p === '/api/shift/end' && m === 'POST') {
     need(u, 'worker');
-    const ended = shifts.get(u.id);
-    if (ended) { restTotals.due += ended.restsDue; restTotals.taken += ended.restsTaken; }
-    shifts.delete(u.id);
-    const a = openAlertFor(u.id);
-    if (a && a.stage !== 'medic') resolve(a, u.name, 'shift ended');
-    log(u.name, 'shift_ended', u.name);
+    endShift(u.id, u.name);
     return send(res, 200, { ok: true });
   }
   if (p === '/api/heartbeat' && m === 'POST') {
@@ -441,6 +507,44 @@ async function api(req, res, url) {
     if (clinical && list.some((a) => a.symptoms)) log(u.name, 'viewed_symptoms', `${list.filter((a) => a.symptoms).length} alert(s)`);
     return send(res, 200, list.map((a) => alertPublic(a, clinical)));
   }
+  // Buddy answers a "check on your buddy" request. Buddies see no clinical detail.
+  const bud = p.match(/^\/api\/alerts\/([a-f0-9]+)\/buddy$/);
+  if (bud && m === 'POST') {
+    need(u, 'worker');
+    const a = alerts.find((x) => x.id === bud[1] && x.status === 'open');
+    if (!a || a.stage !== 'buddy' || users[a.workerId].buddy !== u.id) return send(res, 404, { error: 'no buddy check for you' });
+    const b = await body(req);
+    if (!a.firstHumanAt) a.firstHumanAt = now();
+    if (b.result === 'help') { a.severity = 'urgent'; advance(a, 'medic', u.name, 'buddy says the worker needs help'); } else resolve(a, u.name, 'buddy checked: worker OK');
+    return send(res, 200, { ok: true });
+  }
+
+  // SMS gateway webhook (Twilio-style From/Body, JSON or form-encoded). Commands: START, STOP, 1 = OK, 2 = unwell.
+  if (p === '/api/sms/inbound' && m === 'POST') {
+    if (!DEMO && (!process.env.SMS_SECRET || req.headers['x-sms-secret'] !== process.env.SMS_SECRET)) return send(res, 403, { error: 'bad gateway secret' });
+    const b = await body(req);
+    const from = String(b.From || b.from || '');
+    const text = String(b.Body || b.body || '').trim();
+    const w = Object.values(users).find((x) => x.phone && x.phone === from);
+    if (!w) return send(res, 404, { error: 'unknown number' });
+    outbox.push({ phone: from, text: text.slice(0, 160), at: now(), dir: 'in' });
+    const L = w.lang;
+    const cmd = text.toUpperCase();
+    const sh = shifts.get(w.id);
+    if (cmd === 'START') { if (!sh) startShift(w, {}); sendSms(w.id, `HeatMitra: ${tr(L, 'smsStart')}`); }
+    else if (cmd === 'STOP') { if (sh) endShift(w.id, `${w.name} (SMS)`); sendSms(w.id, `HeatMitra: ${tr(L, 'smsEnd')}`); }
+    else if (!sh) sendSms(w.id, 'HeatMitra: START');
+    else if (cmd === '1') { recordCheckin(sh, 'ok', [], `${w.name} (SMS)`); sendSms(w.id, `HeatMitra: ✓ ${tr(L, `a_${sh.band || 'green'}`)}`); }
+    else if (cmd === '2') { recordCheckin(sh, 'unwell', [], `${w.name} (SMS)`); sendSms(w.id, `HeatMitra: ${tr(L, 'restTitle')}. ${tr(L, 'restBody')}`); }
+    else sendSms(w.id, `HeatMitra: ${tr(L, 'smsReply')}`);
+    return send(res, 200, { ok: true });
+  }
+  if (DEMO && p === '/api/sms/thread' && m === 'GET') {
+    need(u, 'supervisor');
+    const phone = url.searchParams.get('phone');
+    return send(res, 200, outbox.filter((x) => x.phone === phone).slice(-30));
+  }
+
   const ack = p.match(/^\/api\/alerts\/([a-f0-9]+)\/(ack|escalate|attend|resolve)$/);
   if (ack && m === 'POST') {
     const a = alerts.find((x) => x.id === ack[1]);
@@ -499,7 +603,7 @@ async function api(req, res, url) {
   // ----- demo helpers -----
   if (DEMO && p === '/api/demo/crew' && m === 'POST') {
     need(u, 'supervisor');
-    seed.users.filter((w) => w.role === 'worker' && w.siteId === u.siteId && !shifts.has(w.id)).forEach((w) => startShift(w, {}, true));
+    seed.users.filter((w) => w.role === 'worker' && w.channel !== 'sms' && w.siteId === u.siteId && !shifts.has(w.id)).forEach((w) => startShift(w, {}, true));
     return send(res, 200, { ok: true });
   }
   const sil = p.match(/^\/api\/demo\/silent\/(\w+)$/);

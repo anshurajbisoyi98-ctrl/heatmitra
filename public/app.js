@@ -16,8 +16,8 @@
 
   const S = { token: tab.get('hm_token', null), user: tab.get('hm_user', null), lang: local.get('hm_lang', 'en'), timers: [] };
   const BAND_ICON = { green: '✓', yellow: '!', orange: '⏸', red: '✋' };
-  const STAGES = ['worker', 'supervisor', 'medic'];
-  const STAGE_LABEL = { worker: 'Worker', supervisor: 'Supervisor', medic: 'First-aider' };
+  const STAGES = ['worker', 'buddy', 'supervisor', 'medic'];
+  const STAGE_LABEL = { worker: 'Worker', buddy: 'Buddy', supervisor: 'Supervisor', medic: 'First-aider' };
   const OUTCOME_LABEL = { '': 'Outcome…', cramps: 'Heat cramps', exhaustion: 'Heat exhaustion', stroke: 'Suspected heat stroke', notheat: 'Not heat-related', falsealarm: 'False alarm / fine' };
   const REASON = { checkin_due: 'Check-in due', no_signal: 'Phone signal lost', reported_unwell: 'Reported feeling unwell', high_strain: 'High heat strain (wearable)', exertion: 'Says work feels very hard (twice in a row)' };
 
@@ -79,7 +79,7 @@
     setTop(true);
     let users = [];
     try { users = await api('/api/users'); } catch {}
-    const g = (r) => users.filter((u) => u.role === r)
+    const g = (r) => users.filter((u) => u.role === r && u.channel !== 'sms')
       .map((u) => `<button class="btn" data-login="${u.id}">${esc(u.name)} ${r === 'worker' ? `<span class="muted small">· ${I18N.langs[u.lang] || ''}</span>` : ''}</button>`).join('');
     app.innerHTML = `
       <div class="card"><h2>Try the prototype</h2>
@@ -222,6 +222,7 @@
       <div class="row" style="flex-direction:column;gap:10px;align-items:stretch">
         <button class="btn big ok" data-w="ok">${t('ok')}</button>
         <button class="btn big warn" data-w="unwell">${t('unwell')}</button></div>
+      ${me.buddy ? `<p class="small">🤝 ${t('yourBuddy', { name: esc(me.buddy.name) })}</p>` : ''}
       <p class="muted small">${t('privacy')} ${t('notMedical')}</p>
       <label class="check small"><input type="checkbox" id="consentT" ${me.consent && me.consent.symptoms ? 'checked' : ''} /><span>${t('consent')}</span></label>
       <button class="btn" data-w="end">${t('endShift')}</button></div>`;
@@ -230,6 +231,21 @@
     const prompt = me.alert && me.alert.stage !== 'medic';
     if (prompt && !W.modal) showPrompt(me.alert);
     if (!prompt && W.modal === 'prompt') closeModal();
+    if (!prompt && me.buddyTask && !W.modal) showBuddy(me.buddyTask);
+    if (!me.buddyTask && W.modal === 'buddy') closeModal();
+  }
+
+  // "Check on your buddy": only the name and that they are not answering. Nothing clinical.
+  function showBuddy(task) {
+    modal('buddy', `<div class="modal alarm" dir="${dir()}"><h1>🤝 ${t('buddyTitle', { name: esc(task.name) })}</h1><p style="font-size:18px">${t('buddyBody')}</p>
+      <div class="row" style="flex-direction:column;gap:10px;align-items:stretch">
+        <button class="btn big ok" data-bud="ok" data-id="${task.id}">${t('buddyOk')}</button>
+        <button class="btn big warn" data-bud="help" data-id="${task.id}">${t('buddyHelp')}</button></div></div>`);
+    if (W.budSaid !== task.id) {
+      W.budSaid = task.id;
+      say(`${t('buddyTitle', { name: task.name })}. ${t('buddyBody')}`);
+      if (navigator.vibrate) navigator.vibrate([500, 200, 500]);
+    }
   }
 
   function showPrompt(a) {
@@ -385,10 +401,12 @@
         <div class="card" style="grid-column:1/-1" id="sv-map"></div>
         <div class="card" id="sv-crew"></div><div class="card" id="sv-alerts"></div>
         <div class="card" id="sv-sched"></div><div class="card" id="sv-logi"></div>
+        <div class="card" id="sv-sms"></div>
         <div class="card" style="grid-column:1/-1" id="sv-metrics"></div>
         <div class="card" style="grid-column:1/-1" id="sv-cal"></div>
         <div class="card" id="sv-audit"></div></div>`;
       V.map = null; V.mapSite = null; V.hmPlay = null;
+      drawSmsShell();
       drawMapShell();
       drawSchedShell();
       drawLogiShell();
@@ -419,6 +437,80 @@
     drawLogi();
     drawOutlook();
     loadHeatmap();
+  }
+
+  // ---------------- SMS fallback simulator (stands in for a basic phone) ----------------
+  async function drawSmsShell() {
+    const el = $('#sv-sms');
+    let users = [];
+    try { users = await api('/api/users'); } catch {}
+    const w = users.find((u) => u.channel === 'sms');
+    if (!w) { el.remove(); return; }
+    V.smsPhone = w.phone;
+    el.innerHTML = `<h2>📱 SMS fallback: ${esc(w.name)} (basic phone)</h2>
+      <p class="muted small">Demo: this panel stands in for ${esc(w.name)}'s own phone. Real deployments connect an SMS gateway to <code>/api/sms/inbound</code> (Twilio-style From/Body). Messages are in the worker's language (${esc(I18N.langs[w.lang] || w.lang)}).</p>
+      <div class="phone"><div id="smsThread" class="thread"></div>
+        <div class="row" style="margin-top:8px">${['START', '1', '2', 'STOP'].map((c) => `<button class="btn sm" data-sms="${c}">${c}</button>`).join('')}
+          <input id="smsText" class="btn sm" style="flex:1;min-width:60px" maxlength="160" placeholder="Reply…" aria-label="SMS reply" /><button class="btn sm primary" data-c="smsSend">Send</button></div></div>`;
+    loadSms();
+  }
+  async function loadSms() {
+    const el = $('#smsThread');
+    if (!el || !V.smsPhone) return;
+    let msgs;
+    try { msgs = await api(`/api/sms/thread?phone=${encodeURIComponent(V.smsPhone)}`); } catch { return; }
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30;
+    el.innerHTML = msgs.map((m) => `<div class="bubble ${m.dir}">${esc(m.text)}<span>${new Date(m.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span></div>`).join('')
+      || '<p class="muted small">No messages yet. Text START to begin the shift.</p>';
+    if (atBottom) el.scrollTop = el.scrollHeight;
+  }
+  async function sendSmsDemo(text) {
+    await api('/api/sms/inbound', { method: 'POST', body: { From: V.smsPhone, Body: text } }).catch(() => {});
+    await loadSms();
+    const el = $('#smsThread'); if (el) el.scrollTop = el.scrollHeight;
+    pollConsole();
+  }
+
+  // ---------------- HSE / regulator report: crew-level only, small counts suppressed ----------------
+  const sup = (n) => (n == null ? '–' : n > 0 && n < 5 ? '<5' : String(n));
+  function reportRows() {
+    const s = site();
+    const m = (V.crew && V.crew.metrics) || {};
+    const hours = V.fc ? V.fc.hourly.filter((r) => { const h = Number(r.time.slice(11, 13)); return h >= 5 && h <= 19; }) : [];
+    const rows = [
+      ['Site', s.name], ['Date', V.fc ? V.fc.nowTime.slice(0, 10) : ''], ['Weather source', V.fc ? V.fc.source : ''],
+      ['Country rules', Heat.RULES[s.middayBan] ? Heat.RULES[s.middayBan].name : 'none'], ['On-site sensor calibration (°C)', s.calib || 0],
+    ];
+    for (const wl of ['light', 'moderate', 'heavy']) {
+      const c = { green: 0, yellow: 0, orange: 0, red: 0 };
+      Heat.assessDay(hours, { workload: wl, clothing: 'standard', daysOnSite: 30, calib: s.calib || 0 }, s.middayBan).forEach((p) => c[p.band]++);
+      rows.push([`${WORK_LABEL[wl]}: hours normal / caution / work-rest / STOP (05:00–19:59)`, `${c.green} / ${c.yellow} / ${c.orange} / ${c.red}`]);
+    }
+    rows.push(
+      ['Workers on shift now', sup(V.crew ? V.crew.crew.length : null)], ['Alerts opened', sup(m.alertsOpened)],
+      ...Object.entries(m.byReason || {}).map(([r, n]) => [`  of which: ${REASON[r] || r}`, sup(n)]),
+      ['Alerts handled by a buddy', sup(m.buddyChecks)], ['Reached first-aider', sup(m.reachedFirstAider)], ['Emergencies', sup(m.emergencies)],
+      ['Median time to a human response (s)', m.medianResponseSec ?? '–'], ['Check-in prompts answered by worker (%)', m.checkinPromptResponseRate ?? '–'],
+      ['Rest breaks taken, whole crew (%)', m.restAdherence ?? '–'], ['Check-ins where work felt very hard (%)', m.veryHardPct ?? '–'],
+      ...Object.entries(m.outcomes || {}).map(([k, n]) => [`Cases closed as: ${OUTCOME_LABEL[k]}`, sup(n)]),
+    );
+    return rows;
+  }
+  function openReport() {
+    const rows = reportRows();
+    modal('report', `<div class="modal brief"><div class="row noprint" style="justify-content:space-between"><b>HSE report</b>
+        <span class="row"><button class="btn sm" data-c="reportCsv">⬇ Download CSV</button><button class="btn sm" data-c="brPrint">🖨 Print</button><button class="btn sm" data-w="close">✕</button></span></div>
+      <h1>Heat-stress report</h1>
+      <table class="list">${rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td><b>${esc(v)}</b></td></tr>`).join('')}</table>
+      <p class="muted small">Crew-level figures only: no names and no individual health data. Counts from 1 to 4 are shown as "&lt;5" so individuals can't be identified. Prototype data from this session; heat figures use the HeatMitra engine (ISO 7243 estimate, NIOSH limits).</p></div>`);
+  }
+  function downloadReport() {
+    const csv = reportRows().map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([`Measure,Value\n${csv}\n`], { type: 'text/csv' }));
+    a.download = `heatmitra-report-${V.site}-${V.fc ? V.fc.nowTime.slice(0, 10) : 'today'}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
 
   // ---------------- 3-day outlook ----------------
@@ -455,6 +547,7 @@
         <select id="ruleSel" class="btn sm" aria-label="Country rules">${[['', 'No midday ban']].concat(Object.entries(Heat.RULES).map(([k, r]) => [k, r.name])).map(([k, n]) => `<option value="${k}" ${String(s.middayBan || '') === k ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
         <button class="btn sm" data-c="replay">Replay day</button><button class="btn sm" data-c="live">Live</button>
         <button class="btn sm" data-c="brief">📋 Morning briefing</button>
+        <button class="btn sm" data-c="report">📄 Report</button>
         <input type="number" id="calWbgt" class="btn sm" style="width:118px" step="0.1" min="10" max="45" placeholder="Sensor WBGT °C" aria-label="On-site WBGT meter reading" />
         <button class="btn sm" data-c="calib" title="Enter a reading from an on-site WBGT meter; leave empty to clear">Calibrate</button>
         ${V.config.demo ? '<button class="btn sm primary" data-c="crew">Add simulated crew</button>' : ''}
@@ -575,7 +668,7 @@
       const [crew, alerts, audit] = await Promise.all([api(`/api/crew?site=${V.site}`), api('/api/alerts'), api('/api/audit')]);
       V.crew = crew; V.alerts = alerts; V.audit = audit;
     } catch { return; }
-    if (S.user.role === 'supervisor') { drawCrew(); drawAlerts('#sv-alerts', 'supervisor'); drawMetrics(); }
+    if (S.user.role === 'supervisor') { drawCrew(); drawAlerts('#sv-alerts', 'supervisor'); drawMetrics(); loadSms(); }
     else drawAlerts('#md-alerts', 'medic');
     drawAudit();
   }
@@ -597,7 +690,9 @@
   function alertCard(a, role) {
     const ci = STAGES.indexOf(a.stage);
     const done = a.status === 'resolved';
-    const ladder = `<div class="ladder">${STAGES.map((s, i) => `<span class="${done || i < ci ? 'done' : i === ci ? 'cur' : ''}">${STAGE_LABEL[s]}</span>`).join('')}${done ? '<span class="done">Closed</span>' : ''}</div>`;
+    const visited = (s) => a.history.some((h) => h.stage === s);
+    const cls = (s, i) => (i === ci && !done ? 'cur' : visited(s) ? 'done' : i < ci || done ? 'skip' : '');
+    const ladder = `<div class="ladder">${STAGES.map((s, i) => `<span class="${cls(s, i)}">${STAGE_LABEL[s]}</span>`).join('')}${done ? '<span class="done">Closed</span>' : ''}</div>`;
     const age = Math.max(0, Math.round((Date.now() - a.openedAt) / 1000));
     let actions = '';
     if (!done && role === 'supervisor' && a.stage !== 'medic') actions = `<button class="btn sm ok" data-act="ack" data-id="${a.id}">Checked: worker OK</button><button class="btn sm warn" data-act="escalate" data-id="${a.id}">Call first-aider</button>`;
@@ -873,6 +968,11 @@
       if (b.dataset.act) { await api(`/api/alerts/${b.dataset.id}/${b.dataset.act}`, { method: 'POST', body: { outcome: V.outcomes[b.dataset.id] || '' } }); return pollConsole(); }
       if (w === 'rest') { try { const r = await api('/api/rest', { method: 'POST' }); if (W.me) W.me.rest = r; } catch {} return drawWorker(); }
       if (c0 === 'brief') return openBriefing();
+      if (b.dataset.bud) { await api(`/api/alerts/${b.dataset.id}/buddy`, { method: 'POST', body: { result: b.dataset.bud } }).catch(() => {}); closeModal(); return pollWorker(); }
+      if (b.dataset.sms) return sendSmsDemo(b.dataset.sms);
+      if (c0 === 'smsSend') { const v = $('#smsText').value.trim(); $('#smsText').value = ''; return v && sendSmsDemo(v); }
+      if (c0 === 'report') return openReport();
+      if (c0 === 'reportCsv') return downloadReport();
       if (c0 === 'brSay') return say(briefingLines(V.brLang || 'en').join(' '), V.brLang || 'en');
       if (c0 === 'brPrint') return window.print();
       if (b.dataset.silent) { await api(`/api/demo/silent/${b.dataset.silent}`, { method: 'POST' }); return pollConsole(); }

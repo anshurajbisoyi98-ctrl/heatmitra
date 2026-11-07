@@ -51,7 +51,8 @@
       "siteId": "mussafah",
       "workload": "heavy",
       "clothing": "standard",
-      "daysOnSite": 30
+      "daysOnSite": 30,
+      "buddy": "w2"
     },
     {
       "id": "w2",
@@ -61,7 +62,8 @@
       "siteId": "mussafah",
       "workload": "moderate",
       "clothing": "standard",
-      "daysOnSite": 3
+      "daysOnSite": 3,
+      "buddy": "w1"
     },
     {
       "id": "w3",
@@ -71,7 +73,8 @@
       "siteId": "mussafah",
       "workload": "heavy",
       "clothing": "doublelayer",
-      "daysOnSite": 20
+      "daysOnSite": 20,
+      "buddy": "w4"
     },
     {
       "id": "w4",
@@ -81,7 +84,8 @@
       "siteId": "mussafah",
       "workload": "light",
       "clothing": "standard",
-      "daysOnSite": 60
+      "daysOnSite": 60,
+      "buddy": "w3"
     },
     {
       "id": "w5",
@@ -91,7 +95,8 @@
       "siteId": "mussafah",
       "workload": "veryheavy",
       "clothing": "standard",
-      "daysOnSite": 10
+      "daysOnSite": 10,
+      "buddy": "w6"
     },
     {
       "id": "w6",
@@ -101,7 +106,8 @@
       "siteId": "mussafah",
       "workload": "moderate",
       "clothing": "polyolefin",
-      "daysOnSite": 1
+      "daysOnSite": 1,
+      "buddy": "w5"
     },
     {
       "id": "w7",
@@ -111,7 +117,8 @@
       "siteId": "mussafah",
       "workload": "heavy",
       "clothing": "standard",
-      "daysOnSite": 45
+      "daysOnSite": 45,
+      "buddy": "w8"
     },
     {
       "id": "w8",
@@ -121,7 +128,20 @@
       "siteId": "mussafah",
       "workload": "moderate",
       "clothing": "standard",
-      "daysOnSite": 14
+      "daysOnSite": 14,
+      "buddy": "w7"
+    },
+    {
+      "id": "w9",
+      "role": "worker",
+      "name": "Abdul Karim",
+      "lang": "bn",
+      "siteId": "mussafah",
+      "workload": "heavy",
+      "clothing": "standard",
+      "daysOnSite": 20,
+      "channel": "sms",
+      "phone": "DEMO-0009"
     },
     {
       "id": "s1",

@@ -122,6 +122,13 @@ table.list td, table.list th { padding: 7px 6px; border-bottom: 1px solid var(--
 .strip i { display: block; height: 14px; border-radius: 2px; }
 .strip i.c-green { background: #8fd19e; } .strip i.c-yellow { background: #f5d76e; } .strip i.c-orange { background: #f39c4a; } .strip i.c-red { background: #d64541; }
 .strip-l { display: flex; justify-content: space-between; }
+.ladder span.skip { text-decoration: line-through; opacity: .45; }
+.phone { border: 6px solid #2b2b2b; border-radius: 22px; padding: 10px; background: #f3f3f3; }
+.thread { height: 230px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 4px; }
+.bubble { max-width: 85%; padding: 7px 10px; border-radius: 12px; font-size: 13px; line-height: 1.35; }
+.bubble span { display: block; font-size: 10px; opacity: .6; margin-top: 2px; }
+.bubble.out { align-self: flex-start; background: #fff; border: 1px solid var(--line); }
+.bubble.in { align-self: flex-end; background: #d7f5d0; }
 @media print {
   body * { visibility: hidden; }
   #overlay, #overlay * { visibility: visible; }

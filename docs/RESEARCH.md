@@ -58,9 +58,13 @@ A short, time-boxed literature scan, done on the challenge day. Google Scholar b
 - **Source:** Tikuisis, McLellan & Selkirk, *Perceptual versus physiological heat strain during exercise-heat stress*, Med Sci Sports Exerc 34 (2002), which proposed a perceptual strain index alongside PSI. Recent critiques of PSI also argue for adding perception.
 - **In HeatMitra:** a three-face "how hard does your work feel?" answer on each check-in. "Very hard" gets rest advice, and two in a row alert the supervisor. The crew-level share of "very hard" answers is a measure.
 
+### 8. Buddy system (built)
+- **Source:** NIOSH's heat-stress recommendations include a buddy system, so co-workers watch each other for signs of heat illness.
+- **In HeatMitra:** a "check on your buddy" step sits between the worker and the supervisor. It's usually the fastest physical check on a site, and the buddy sees nothing clinical.
+
 ## Found, not built yet (roadmap)
 
-- **Thermal Work Limit (TWL):**
+- **Thermal Work Limit (TWL):** (deliberately not approximated: it needs a full heat-balance model, and a safety index we can't verify shouldn't ship)
   - Brake & Bates; tested on UAE construction sites, where one study found it more useful than WBGT for well-hydrated, self-paced workers.
   - It needs a heat-balance model and would be a second index alongside WBGT.
 
