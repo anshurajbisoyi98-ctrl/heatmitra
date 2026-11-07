@@ -32,6 +32,12 @@ Deploy: `Dockerfile` and `render.yaml` are included (single process, `PORT` env 
    - **Regional heat map** (Uber H3 hexagons): press **Play the day** to watch heat move across the area hour by hour. Red outlines mark where the chosen task must stop.
    - **Smart task scheduler:** gives the heaviest tasks the coolest hours and flags work that can't be done safely today.
    - **Summer heat calendar:** every hour of summer 2025, with the midday-ban window outlined. Switch the task type to compare.
+   - **Calibrate:** type an on-site WBGT meter reading (e.g. 33) in the header. Every plan at the site corrects itself.
+8. In the worker app:
+   - **Heart-rate sensor → Demo** simulates a rising heart rate. HeatMitra estimates core temperature and the strain index, and at a strain index of 7 it tells the worker to stop and alerts the supervisor. **Connect Bluetooth sensor** works with real chest straps in Chrome.
+   - **Hydration check** is the urine-colour self-check.
+
+The research behind these features is in `docs/RESEARCH.md`.
 
 ## Layout
 

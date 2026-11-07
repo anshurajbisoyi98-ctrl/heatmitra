@@ -18,7 +18,7 @@
   const BAND_ICON = { green: '✓', yellow: '!', orange: '⏸', red: '✋' };
   const STAGES = ['worker', 'supervisor', 'medic'];
   const STAGE_LABEL = { worker: 'Worker', supervisor: 'Supervisor', medic: 'First-aider' };
-  const REASON = { checkin_due: 'Check-in due', no_signal: 'Phone signal lost', reported_unwell: 'Reported feeling unwell' };
+  const REASON = { checkin_due: 'Check-in due', no_signal: 'Phone signal lost', reported_unwell: 'Reported feeling unwell', high_strain: 'High heat strain (wearable)' };
 
   function t(key, vars) {
     const L = I18N[S.lang] || I18N.en;
@@ -188,11 +188,14 @@
         <div class="row"><span class="icon">${BAND_ICON[b]}</span><span class="label">${t(`b_${b}`)}</span></div>
         <div class="act">${t(`a_${b}`)}</div>
         ${c.middayBan ? `<div class="act"><b>${t('ban')}</b></div>` : ''}
+        <div class="meter" dir="ltr" aria-hidden="true"><span style="left:${Math.max(0, Math.min(100, ((c.wbgtEff - c.limit + 6) / 12) * 100))}%"></span></div>
         <div class="meta" dir="ltr">WBGT ≈ ${c.wbgtEff}°C · limit ${c.limit}°C · ${esc((c.time || '').slice(11))} ${replay} ${stale}</div>
       </div>
       <div class="card"><h2>${t('plan')}</h2><div class="split">
         <div class="box"><div class="num">${c.workMin}</div>${t('work')} (${t('min')})</div>
         <div class="box"><div class="num">${c.restMin}</div>${t('rest')} (${t('min')})</div></div></div>
+      ${wearHtml()}
+      <div class="row" style="margin-bottom:12px"><button class="btn" data-w="hyd" style="flex:1">💧 ${t('hyd')}</button></div>
       ${me.rise ? `<div class="notice rise">${t('rise', { time: me.rise.time.slice(11), band: t(`b_${me.rise.band}`) })}</div>` : ''}
       ${!c.acclimatised ? `<div class="notice info">${t('acclim', { d: Math.max(1, me.shift.daysOnSite), p: c.exposureCap })}</div>` : ''}
       ${me.nextCheckinAt ? `<div class="card row" style="justify-content:space-between"><span>${t('next')}</span><span class="timer" id="cdown" dir="ltr"></span></div>` : ''}
@@ -252,6 +255,91 @@
     pollWorker();
   }
 
+  // ---------------- wearable heat strain (heart rate -> core temp -> PSI) ----------------
+  // Heart rate never leaves the phone. Core temperature: Buller et al. 2013 Kalman filter.
+  // Strain: Moran et al. 1998 PSI. Only PSI >= 7 is reported, as an alert.
+  W.wear = null;
+  function wearHtml() {
+    const w = W.wear;
+    const body = w && w.psi != null
+      ? (() => {
+        const band = Heat.psiBand(w.psi);
+        return `<div class="row" style="justify-content:space-between" dir="ltr"><span>♥ <b>${w.hr}</b> bpm</span><span>${t('coreTemp')} <b>${w.state.ct.toFixed(1)} °C</b></span></div>
+          <div class="psi"><span style="width:${w.psi * 10}%" class="p-${band}"></span></div>
+          <div><b>${t('strain')}: ${w.psi}/10</b> · ${t(`psi_${band}`)}</div>`;
+      })()
+      : `<div class="row"><button class="btn sm" data-w="wearBle">${t('wearConnect')}</button><button class="btn sm" data-w="wearDemo">${t('wearDemo')}</button></div>`;
+    return `<div class="card" id="wearCard"><h2>${t('wearTitle')}${w ? ` <span class="tag">${w.src === 'ble' ? 'Bluetooth' : 'demo'}</span>` : ''}</h2>${body}<p class="muted small">${t('wearNote')}</p></div>`;
+  }
+  function updateWear() {
+    const el = $('#wearCard');
+    if (el) el.outerHTML = wearHtml();
+  }
+  async function stepWear(hr) {
+    const w = W.wear;
+    if (!w) return;
+    w.hr = hr;
+    w.state = Heat.coreTempStep(w.state, hr);
+    w.psi = Heat.psi(w.state.ct, hr);
+    updateWear();
+    if (w.psi >= 7 && Date.now() - w.lastSent > 30000) {
+      w.lastSent = Date.now();
+      say(`${t('strain')}: ${t(`psi_${Heat.psiBand(w.psi)}`)}`);
+      try {
+        const r = await api('/api/strain', { method: 'POST', body: { psi: w.psi, ct: w.state.ct } });
+        if (r.action === 'emergency') showEmergency(r.emergency); else if (r.action === 'stop') showRest();
+      } catch {}
+    }
+  }
+  function startDemoWear() {
+    W.wear = { src: 'demo', state: null, hr: null, psi: null, t0: Date.now(), lastSent: 0 };
+    const timer = setInterval(() => {
+      if (!W.wear || W.wear.src !== 'demo') return clearInterval(timer);
+      const s = (Date.now() - W.wear.t0) / 1000;
+      const hr = Math.round(Math.min(168, 88 + s * 2.4) + (Math.random() * 4 - 2));
+      for (let i = 0; i < 3; i++) stepWear(hr); // demo: 3 simulated minutes per second
+    }, 1000);
+    S.timers.push(timer);
+    updateWear();
+  }
+  // Standard Bluetooth Heart Rate Service (0x180D): chest straps and many watches in broadcast mode.
+  async function connectWear() {
+    if (!navigator.bluetooth) { alert('This browser has no Web Bluetooth. Use Chrome on Android or desktop, or try the demo.'); return; }
+    try {
+      const dev = await navigator.bluetooth.requestDevice({ filters: [{ services: ['heart_rate'] }] });
+      const ch = await (await (await dev.gatt.connect()).getPrimaryService('heart_rate')).getCharacteristic('heart_rate_measurement');
+      W.wear = { src: 'ble', state: null, hr: null, psi: null, buf: [], lastStep: 0, lastSent: 0 };
+      ch.addEventListener('characteristicvaluechanged', (e) => {
+        const d = e.target.value;
+        const hr = d.getUint8(0) & 1 ? d.getUint16(1, true) : d.getUint8(1);
+        const w = W.wear;
+        if (!w || w.src !== 'ble') return;
+        w.buf.push(hr);
+        if (Date.now() - w.lastStep >= 60000) { // the filter expects 1-minute means
+          const mean = Math.round(w.buf.reduce((a, b) => a + b, 0) / w.buf.length);
+          w.buf = []; w.lastStep = Date.now();
+          stepWear(mean);
+        }
+      });
+      await ch.startNotifications();
+      updateWear();
+    } catch (err) { console.warn(err); }
+  }
+
+  // Urine colour self-check (Armstrong et al. 1994, 8-colour chart). Result stays on the phone.
+  const URINE = ['#fbfbe3', '#f8f3b5', '#f4e98a', '#efd85c', '#e3c03b', '#d2a52a', '#b5861f', '#8c6514'];
+  function openHydration() {
+    modal('hyd', `<div class="modal" dir="${dir()}"><h1>💧 ${t('hyd')}</h1><p>${t('hydAsk')}</p>
+      <div class="urine">${URINE.map((c, i) => `<button class="swatch" style="background:${c}" data-hyd="${i + 1}" aria-label="${i + 1}">${i + 1}</button>`).join('')}</div>
+      <p id="hydOut" style="font-size:18px"></p><p class="muted small">${t('hydNote')}</p><button class="btn" data-w="close">${t('close')}</button></div>`);
+  }
+  function pickHydration(n) {
+    const key = n <= 3 ? 'hyd_ok' : n <= 5 ? 'hyd_mid' : 'hyd_bad';
+    const out = $('#hydOut');
+    if (out) { out.textContent = t(key); out.style.color = n <= 3 ? 'var(--green)' : n <= 5 ? '#9a4300' : 'var(--red)'; }
+    say(t(key));
+  }
+
   // ---------------- supervisor + first-aider ----------------
   const V = { site: null, fc: null, crew: null, alerts: [], audit: [], bt: null, config: null };
 
@@ -305,11 +393,14 @@
     $('#sv-head').innerHTML = `<div class="card"><div class="row" style="justify-content:space-between">
       <div><h2 style="margin:0">${esc(s.name)}</h2><div class="muted small">${esc(fc ? fc.source : '')}
         ${fc && fc.mode === 'replay' ? `<span class="tag replay">replaying ${esc(s.replayDate)} at today's clock time</span>` : '<span class="tag">live forecast</span>'}
-        ${fc && fc.stale ? '<span class="tag stale">network down: cached weather</span>' : ''}</div></div>
+        ${fc && fc.stale ? '<span class="tag stale">network down: cached weather</span>' : ''}
+        ${s.calib ? `<span class="tag" style="background:#e6f4ea">calibrated ${s.calib > 0 ? '+' : ''}${s.calib} °C from site sensor</span>` : ''}</div></div>
       <div class="row">
         <select id="siteSel" class="btn sm">${V.config.sites.map((x) => `<option value="${x.id}" ${x.id === V.site ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>
         <input type="date" id="replayDate" class="btn sm" style="width:auto" value="${esc(s.replayDate || '2025-06-10')}" min="2024-01-01" />
         <button class="btn sm" data-c="replay">Replay day</button><button class="btn sm" data-c="live">Live</button>
+        <input type="number" id="calWbgt" class="btn sm" style="width:118px" step="0.1" min="10" max="45" placeholder="Sensor WBGT °C" aria-label="On-site WBGT meter reading" />
+        <button class="btn sm" data-c="calib" title="Enter a reading from an on-site WBGT meter; leave empty to clear">Calibrate</button>
         ${V.config.demo ? '<button class="btn sm primary" data-c="crew">Add simulated crew</button>' : ''}
       </div></div></div>`;
     $('#siteSel').onchange = (e) => { V.site = e.target.value; loadForecast(); pollConsole(); };
@@ -334,7 +425,7 @@
       ['Moderate, new worker', { workload: 'moderate', clothing: 'standard', daysOnSite: 2 }],
       ['Heavy, double-layer coverall', { workload: 'heavy', clothing: 'doublelayer', daysOnSite: 30 }],
     ];
-    const plans = rows.map(([label, prof]) => [label, Heat.assessDay(hours, prof, s.middayBan)]);
+    const plans = rows.map(([label, prof]) => [label, Heat.assessDay(hours, { ...prof, calib: s.calib || 0 }, s.middayBan)]);
     const win = Heat.bestWindow(plans[2][1]);
     const cell = (p) => `<td class="c-${p.band} ${p.time === fc.nowTime ? 'now' : ''}" title="WBGT ${p.wbgtEff}°C vs limit ${p.limit}°C${p.middayBan ? ' · midday ban' : ''}">${p.band === 'red' ? 'STOP' : p.workMin === 60 ? '60' : `${p.workMin}/${p.restMin}`}</td>`;
     el.innerHTML = `<h2>Work/rest planner</h2>
@@ -342,7 +433,7 @@
       ${s.middayBan ? 'From 15 Jun to 15 Sep, 12:00–14:59 slots also carry the UAE midday outdoor work ban.' : ''}</p>
       <div class="planner"><table>
         <tr><th>Hour</th>${hours.map((h) => `<th class="${h.time === fc.nowTime ? 'now' : ''}">${h.time.slice(11, 13)}</th>`).join('')}</tr>
-        <tr><td>Est. WBGT °C</td>${hours.map((h) => `<td>${Heat.wbgt(h.t, h.rh, h.sw, h.wind).toFixed(1)}</td>`).join('')}</tr>
+        <tr><td>Est. WBGT °C</td>${hours.map((h) => `<td>${(Heat.wbgt(h.t, h.rh, h.sw, h.wind) + (s.calib || 0)).toFixed(1)}</td>`).join('')}</tr>
         <tr><td>Air °C / RH %</td>${hours.map((h) => `<td>${Math.round(h.t)}/${Math.round(h.rh)}</td>`).join('')}</tr>
         ${plans.map(([l, p]) => `<tr><td>${l}</td>${p.map(cell).join('')}</tr>`).join('')}
       </table></div>
@@ -385,6 +476,8 @@
     if (role === 'medic') {
       if (a.symptoms && a.symptoms.length) clinical = `<div class="small">Symptoms: <b>${a.symptoms.map((s) => esc(I18N.en[`s_${s}`] || s)).join(', ')}</b></div>`;
       else if (a.reason === 'reported_unwell') clinical = '<div class="small muted">Symptoms not shared: the worker has not consented.</div>';
+      if (a.strain) clinical += `<div class="small">Wearable: strain index <b>${a.strain.psi}/10</b>, estimated core temperature <b>${a.strain.ct} °C</b></div>`;
+      else if (a.reason === 'high_strain') clinical += '<div class="small muted">Strain values not shared: the worker has not consented.</div>';
     }
     return `<div class="alert ${a.severity === 'emergency' ? 'emergency' : ''} ${done ? 'resolved' : ''}">
       <div class="row" style="justify-content:space-between"><b>${esc(a.worker)}</b><span class="small muted">${REASON[a.reason] || a.reason} · ${a.severity} · ${age}s ago</span></div>
@@ -578,11 +671,11 @@
   const fmtMin = (m) => (m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}`);
 
   // One crew, tasks one after another. Heaviest task first gets the hours where it can work the most.
-  function schedule(tasks, hours, ban) {
+  function schedule(tasks, hours, ban, calib = 0) {
     const used = new Set();
     const order = tasks.map((task, idx) => ({ task, idx })).sort((a, b) => Heat.WORKLOAD[b.task.workload] - Heat.WORKLOAD[a.task.workload]);
     return order.map(({ task, idx }) => {
-      const plan = Heat.assessDay(hours, { workload: task.workload, clothing: 'standard', daysOnSite: 30 }, ban);
+      const plan = Heat.assessDay(hours, { workload: task.workload, clothing: 'standard', daysOnSite: 30, calib }, ban);
       const need = Math.round(task.hours * 60);
       const cand = plan.map((p, i) => ({ p, i })).filter((x) => !used.has(x.i) && x.p.workMin > 0)
         .sort((a, b) => b.p.workMin - a.p.workMin || a.i - b.i);
@@ -613,7 +706,7 @@
     const el = $('#schedList');
     if (!el || !V.fc) return;
     const hours = V.fc.hourly.filter((r) => { const h = Number(r.time.slice(11, 13)); return h >= 5 && h <= 19; });
-    const res = schedule(V.tasks, hours, site().middayBan);
+    const res = schedule(V.tasks, hours, site().middayBan, site().calib || 0);
     el.innerHTML = res.length ? res.map((r) => `<div class="sched ${r.ok ? '' : 'bad'}">
         <div class="row" style="justify-content:space-between"><b>${esc(r.task.name)}</b><button class="btn sm" data-deltask="${r.idx}" aria-label="Remove task">✕</button></div>
         <div class="small">${WORK_LABEL[r.task.workload]}, ${fmtMin(Math.round(r.task.hours * 60))} → <b>${r.segments.length ? r.segments.join(', ') : 'no safe hours left'}</b></div>
@@ -629,9 +722,15 @@
       if (b.dataset.login) return login(b.dataset.login);
       if (b.dataset.sym) return b.classList.toggle('on');
       const w = b.dataset.w;
+      const c0 = b.dataset.c;
       if (w === 'ok') return checkin('ok');
       if (w === 'unwell') return openSymptoms();
       if (w === 'close') return closeModal();
+      if (w === 'hyd') return openHydration();
+      if (b.dataset.hyd) return pickHydration(Number(b.dataset.hyd));
+      if (w === 'wearDemo') return startDemoWear();
+      if (w === 'wearBle') return connectWear();
+      if (c0 === 'calib') { const s = await api('/api/site/calibrate', { method: 'POST', body: { siteId: V.site, wbgt: $('#calWbgt').value } }); V.config.sites = V.config.sites.map((x) => (x.id === s.id ? s : x)); return loadForecast(); }
       if (w === 'sendSym') return checkin('unwell', [...overlay.querySelectorAll('.chip.on')].map((x) => x.dataset.sym));
       if (w === 'end') { await api('/api/shift/end', { method: 'POST' }).catch(() => {}); local.del('hm_plan'); W.view = null; W.me = null; return pollWorker(); }
       if (b.dataset.act) { await api(`/api/alerts/${b.dataset.id}/${b.dataset.act}`, { method: 'POST', body: {} }); return pollConsole(); }

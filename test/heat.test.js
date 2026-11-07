@@ -47,6 +47,23 @@ test('UAE midday ban: 15 Jun to 15 Sep, 12:00 to 14:59 slots', () => {
   assert.strictEqual(a.middayBan, true);
 });
 
+test('core temperature from heart rate (Buller 2013) and PSI (Moran 1998)', () => {
+  let s = null;
+  for (let i = 0; i < 60; i++) s = Heat.coreTempStep(s, 83);
+  assert.ok(Math.abs(s.ct - 37.1) < 0.1, `resting HR keeps core temp near 37.1 (got ${s.ct.toFixed(2)})`);
+  let hot = null;
+  for (let i = 0; i < 120; i++) hot = Heat.coreTempStep(hot, 160);
+  assert.ok(hot.ct > 38 && hot.ct < 40, `sustained HR 160 raises core temp (got ${hot.ct.toFixed(2)})`);
+  assert.strictEqual(Heat.psi(37.1, 70), 0);
+  assert.strictEqual(Heat.psi(39.5, 180), 10);
+  assert.strictEqual(Heat.psiBand(7.5), 'high');
+});
+
+test('on-site sensor calibration shifts WBGT', () => {
+  const o = { t: 35, rh: 50, sw: 600, wind: 10, workload: 'moderate', clothing: 'standard', daysOnSite: 30 };
+  assert.ok(Math.abs(Heat.assess({ ...o, calib: 2 }).wbgt - Heat.assess(o).wbgt - 2) < 0.11);
+});
+
 test('advance warning finds the next rise', () => {
   const plan = ['green', 'green', 'yellow', 'red'].map((band, i) => ({ band, time: `2025-07-10T0${i + 6}:00` }));
   assert.deepStrictEqual(Heat.nextRise(plan, 0), { time: '2025-07-10T08:00', band: 'yellow', hoursAhead: 2 });

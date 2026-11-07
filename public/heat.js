@@ -74,7 +74,7 @@
   function assess(o) {
     const acclimatised = (o.daysOnSite || 0) >= ACCLIMATISED_DAYS;
     const m = WORKLOAD[o.workload] || WORKLOAD.moderate;
-    const base = wbgt(o.t, o.rh, o.sw, o.wind);
+    const base = wbgt(o.t, o.rh, o.sw, o.wind) + (o.calib || 0); // calib: on-site sensor offset
     const eff = base + (CLOTHING[o.clothing] || 0);
     const lim = limit(m, acclimatised);
     const margin = eff - lim;
@@ -138,7 +138,28 @@
     return Number(w.end.slice(11, 13)) - Number(w.start.slice(11, 13)) + 1;
   }
 
+  // Core temperature from heart rate: Buller et al. 2013, Physiol Meas 34:781 (extended Kalman
+  // filter, one step per 1-minute mean heart rate). Published parameters.
+  const ECT = { a: 1, gamma: 0.022 * 0.022, b0: -7887.1, b1: 384.4286, b2: -4.5714, sigma: 18.88 * 18.88 };
+  function coreTempStep(state, hr) {
+    const s = state || { ct: 37.1, v: 0 };
+    const ctHat = ECT.a * s.ct;
+    const vHat = ECT.a * ECT.a * s.v + ECT.gamma;
+    const c = 2 * ECT.b2 * ctHat + ECT.b1;
+    const k = (vHat * c) / (c * c * vHat + ECT.sigma);
+    const ct = ctHat + k * (hr - (ECT.b2 * ctHat * ctHat + ECT.b1 * ctHat + ECT.b0));
+    return { ct, v: (1 - k * c) * vHat };
+  }
+
+  // Physiological Strain Index, Moran et al. 1998, Am J Physiol: 0 (none) to 10 (very high).
+  function psi(ct, hr, ct0 = 37.1, hr0 = 70) {
+    const v = (5 * (ct - ct0)) / (39.5 - ct0) + (5 * (hr - hr0)) / (180 - hr0);
+    return Math.max(0, Math.min(10, Math.round(v * 10) / 10));
+  }
+  const psiBand = (p) => (p < 5 ? 'low' : p < 7 ? 'moderate' : p < 9 ? 'high' : 'veryhigh');
+
   return {
+    coreTempStep, psi, psiBand,
     WORKLOAD, CLOTHING, BANDS, CHECKIN_MIN, RED_FLAGS, SYMPTOMS, ACCLIMATISED_DAYS,
     wetBulb, wbgt, limit, workFraction, inMiddayBan, assess, assessDay, nextRise, bestWindow,
   };

@@ -84,3 +84,33 @@ window.I18N = {
     notMedical: 'فیصلے میں مدد، طبی آلہ نہیں۔',
   },
 };
+
+// Research-based additions: hydration self-check (Armstrong urine colour chart) and wearable heat strain (PSI).
+Object.assign(I18N.en, {
+  hyd: 'Hydration check', hydAsk: 'Tap the colour closest to your urine.', hyd_ok: 'Good. Keep drinking 1 cup every 15–20 minutes.',
+  hyd_mid: 'Drink 2 cups of water now, then 1 cup every 15 minutes.', hyd_bad: 'You are dehydrated. Stop, rest in shade and drink water. Tell your supervisor if you feel dizzy.',
+  hydNote: 'Stays on your phone. Not sent to anyone.', wearTitle: 'Heart-rate sensor (optional)', wearConnect: 'Connect Bluetooth sensor', wearDemo: 'Demo',
+  strain: 'Heat strain', psi_low: 'Low', psi_moderate: 'Moderate', psi_high: 'High: stop and cool down', psi_veryhigh: 'Very high: get help now',
+  coreTemp: 'Est. body temp', wearNote: 'Heart rate stays on your phone. Only a high-strain alert is sent.',
+});
+Object.assign(I18N.hi, {
+  hyd: 'पानी की जाँच', hydAsk: 'अपने पेशाब के रंग के सबसे करीब वाला रंग दबाएँ।', hyd_ok: 'अच्छा। हर 15–20 मिनट में 1 कप पानी पीते रहें।',
+  hyd_mid: 'अभी 2 कप पानी पिएँ, फिर हर 15 मिनट में 1 कप।', hyd_bad: 'आपके शरीर में पानी की कमी है। रुकें, छाँव में आराम करें और पानी पिएँ। चक्कर आए तो सुपरवाइज़र को बताएँ।',
+  hydNote: 'यह सिर्फ़ आपके फ़ोन पर रहता है। किसी को नहीं भेजा जाता।', wearTitle: 'हृदय गति सेंसर (वैकल्पिक)', wearConnect: 'ब्लूटूथ सेंसर जोड़ें', wearDemo: 'डेमो',
+  strain: 'गर्मी का दबाव', psi_low: 'कम', psi_moderate: 'मध्यम', psi_high: 'ज़्यादा: रुकें और शरीर ठंडा करें', psi_veryhigh: 'बहुत ज़्यादा: अभी मदद लें',
+  coreTemp: 'अनुमानित शरीर तापमान', wearNote: 'हृदय गति आपके फ़ोन पर ही रहती है। सिर्फ़ ज़्यादा दबाव का अलर्ट भेजा जाता है।',
+});
+Object.assign(I18N.ar, {
+  hyd: 'فحص الترطيب', hydAsk: 'اضغط على اللون الأقرب إلى لون بولك.', hyd_ok: 'جيد. استمر بشرب كوب كل 15–20 دقيقة.',
+  hyd_mid: 'اشرب كوبين من الماء الآن، ثم كوبًا كل 15 دقيقة.', hyd_bad: 'لديك جفاف. توقف واسترح في الظل واشرب الماء. أخبر مشرفك إذا شعرت بدوخة.',
+  hydNote: 'يبقى على هاتفك فقط. لا يُرسل لأحد.', wearTitle: 'حساس نبض القلب (اختياري)', wearConnect: 'توصيل حساس بلوتوث', wearDemo: 'عرض تجريبي',
+  strain: 'الإجهاد الحراري', psi_low: 'منخفض', psi_moderate: 'متوسط', psi_high: 'مرتفع: توقف وبرّد جسمك', psi_veryhigh: 'مرتفع جدًا: اطلب المساعدة الآن',
+  coreTemp: 'حرارة الجسم المقدرة', wearNote: 'يبقى نبض القلب على هاتفك. يُرسل تنبيه الإجهاد المرتفع فقط.',
+});
+Object.assign(I18N.ur, {
+  hyd: 'پانی کی جانچ', hydAsk: 'اپنے پیشاب کے رنگ سے قریب ترین رنگ دبائیں۔', hyd_ok: 'اچھا۔ ہر 15–20 منٹ میں 1 کپ پانی پیتے رہیں۔',
+  hyd_mid: 'ابھی 2 کپ پانی پیئیں، پھر ہر 15 منٹ میں 1 کپ۔', hyd_bad: 'آپ کے جسم میں پانی کی کمی ہے۔ رکیں، سائے میں آرام کریں اور پانی پیئیں۔ چکر آئے تو سپروائزر کو بتائیں۔',
+  hydNote: 'یہ صرف آپ کے فون پر رہتا ہے۔ کسی کو نہیں بھیجا جاتا۔', wearTitle: 'دل کی دھڑکن کا سینسر (اختیاری)', wearConnect: 'بلوٹوتھ سینسر جوڑیں', wearDemo: 'ڈیمو',
+  strain: 'گرمی کا دباؤ', psi_low: 'کم', psi_moderate: 'درمیانہ', psi_high: 'زیادہ: رکیں اور جسم ٹھنڈا کریں', psi_veryhigh: 'بہت زیادہ: ابھی مدد لیں',
+  coreTemp: 'اندازاً جسم کا درجہ حرارت', wearNote: 'دل کی دھڑکن آپ کے فون پر ہی رہتی ہے۔ صرف زیادہ دباؤ کا الرٹ بھیجا جاتا ہے۔',
+});

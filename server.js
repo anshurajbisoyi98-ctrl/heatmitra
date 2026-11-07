@@ -71,7 +71,7 @@ function profileOf(sh) {
 async function workerView(sh) {
   const site = sites[sh.siteId];
   const sn = await siteNow(site);
-  const plan = Heat.assessDay(sn.day, profileOf(sh), site.middayBan);
+  const plan = Heat.assessDay(sn.day, { ...profileOf(sh), calib: site.calib || 0 }, site.middayBan);
   const current = plan[sn.idx];
   sh.band = current.band;
   sh.checkinMin = current.checkinMin;
@@ -181,6 +181,7 @@ function alertPublic(a, withClinical) {
   };
   if (withClinical) {
     out.symptoms = a.symptoms;
+    out.strain = a.strain || null;
     out.consented = Boolean(consent.get(a.workerId)?.symptoms);
   }
   return out;
@@ -317,6 +318,23 @@ async function api(req, res, url) {
     const b = await body(req);
     return send(res, 200, recordCheckin(sh, b.status === 'unwell' ? 'unwell' : 'ok', b.symptoms, u.name));
   }
+  // Wearable strain: the phone computes PSI from heart rate and only reports it when it is high.
+  if (p === '/api/strain' && m === 'POST') {
+    need(u, 'worker');
+    const sh = shifts.get(u.id);
+    if (!sh) return send(res, 409, { error: 'no active shift' });
+    const b = await body(req);
+    const psi = Number(b.psi), ct = Number(b.ct);
+    if (!(psi >= 0 && psi <= 10) || !(ct > 34 && ct < 43)) return send(res, 400, { error: 'bad strain values' });
+    sh.lastHeartbeat = now();
+    if (psi < 7) return send(res, 200, { action: 'continue' });
+    const shared = consent.get(u.id)?.symptoms ? { psi, ct: Math.round(ct * 10) / 10 } : null;
+    let a = openAlertFor(u.id);
+    if (!a) a = openAlert(sh, 'high_strain', 'supervisor', { severity: psi >= 9 ? 'emergency' : 'urgent' });
+    a.strain = shared;
+    if (psi >= 9) { a.severity = 'emergency'; if (a.stage !== 'medic') advance(a, 'medic', u.name, 'very high heat strain from wearable'); }
+    return send(res, 200, { action: psi >= 9 ? 'emergency' : 'stop', emergency: sites[sh.siteId].emergency });
+  }
   if (p === '/api/consent' && m === 'POST') {
     need(u, 'worker');
     const b = await body(req);
@@ -363,6 +381,23 @@ async function api(req, res, url) {
     return send(res, 200, alertPublic(a, u.role === 'medic'));
   }
   if (p === '/api/audit' && m === 'GET') { need(u, 'supervisor', 'medic'); return send(res, 200, audit.slice(-60).reverse()); }
+  // On-site WBGT meter reading: store the offset between measured and modelled WBGT for this hour
+  // and apply it to every plan at the site (ISO 7243 prefers measured WBGT).
+  if (p === '/api/site/calibrate' && m === 'POST') {
+    need(u, 'supervisor');
+    const b = await body(req);
+    const site = sites[b.siteId];
+    if (!site) return send(res, 404, { error: 'no such site' });
+    if (b.wbgt == null || b.wbgt === '') { site.calib = 0; log(u.name, 'site_calibration_cleared', site.id); return send(res, 200, site); }
+    const meas = Number(b.wbgt);
+    if (!(meas >= 10 && meas <= 45)) return send(res, 400, { error: 'WBGT reading must be between 10 and 45 °C' });
+    const sn = await siteNow(site);
+    const r = sn.day[sn.idx];
+    const model = Heat.wbgt(r.t, r.rh, r.sw, r.wind);
+    site.calib = Math.max(-6, Math.min(6, Math.round((meas - model) * 10) / 10));
+    log(u.name, 'site_calibrated', `${site.id}: sensor ${meas} °C vs model ${model.toFixed(1)} °C -> offset ${site.calib}`);
+    return send(res, 200, site);
+  }
   if (p === '/api/site/mode' && m === 'POST') {
     need(u, 'supervisor');
     const b = await body(req);
