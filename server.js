@@ -255,6 +255,18 @@ async function api(req, res, url) {
     return send(res, 200, { site, mode: sn.fc.mode, source: sn.fc.source, stale: sn.fc.stale, fetchedAt: sn.fc.fetchedAt, nowTime: sn.time, hourly: sn.day });
   }
 
+  if (m === 'GET' && p === '/api/heatmap') {
+    const site = sites[url.searchParams.get('site')];
+    if (!site) return send(res, 404, { error: 'no such site' });
+    const g = await weather.grid(site, site.replayDate);
+    const work = (r) => { const h = Number(r.time.slice(11, 13)); return h >= 5 && h <= 19; };
+    return send(res, 200, {
+      site: { id: site.id, name: site.name, lat: site.lat, lon: site.lon, middayBan: site.middayBan },
+      mode: g.mode, date: g.date, source: g.source, stale: g.stale, n: g.n, step: g.step,
+      points: g.points.map((pt) => ({ lat: pt.lat, lon: pt.lon, hourly: pt.hourly.filter(work) })),
+    });
+  }
+
   // ----- worker -----
   if (p === '/api/me' && m === 'GET') {
     need(u, 'worker');

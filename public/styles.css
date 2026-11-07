@@ -94,4 +94,11 @@ table.list td, table.list th { padding: 7px 6px; border-bottom: 1px solid var(--
 .kpis div { background: var(--bg); border-radius: 10px; padding: 10px; }
 .kpis b { display: block; font-size: 22px; }
 .audit { max-height: 260px; overflow: auto; font-size: 12px; font-family: ui-monospace, Menlo, monospace; }
+.map { height: 420px; border-radius: 12px; margin-top: 10px; position: relative; z-index: 0; }
+.legend { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.legend i { display: inline-block; width: 140px; height: 10px; border-radius: 5px; background: linear-gradient(90deg, rgb(44,123,182), rgb(171,217,233) 25%, rgb(255,255,191) 42%, rgb(253,174,97) 58%, rgb(215,25,28) 75%, rgb(110,0,20)); }
+.f-green { fill: #8fd19e; } .f-yellow { fill: #f5d76e; } .f-orange { fill: #f39c4a; } .f-red { fill: #d64541; }
+.cal-t { font-size: 10px; fill: var(--muted); }
+.sched { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; }
+.sched.bad { border-color: var(--red); background: var(--red-bg); }
 @media (max-width: 560px) { .brand small { display: none; } .counts b { font-size: 20px; } }

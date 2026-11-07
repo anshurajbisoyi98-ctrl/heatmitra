@@ -263,8 +263,15 @@
     if (S.user.role === 'supervisor') {
       app.innerHTML = `<div id="sv-head"></div><div class="grid">
         <div class="card" style="grid-column:1/-1" id="sv-plan"></div>
+        <div class="card" style="grid-column:1/-1" id="sv-map"></div>
         <div class="card" id="sv-crew"></div><div class="card" id="sv-alerts"></div>
-        <div class="card" id="sv-metrics"></div><div class="card" id="sv-audit"></div></div>`;
+        <div class="card" id="sv-sched"></div><div class="card" id="sv-metrics"></div>
+        <div class="card" style="grid-column:1/-1" id="sv-cal"></div>
+        <div class="card" id="sv-audit"></div></div>`;
+      V.map = null; V.mapSite = null; V.hmPlay = null;
+      drawMapShell();
+      drawSchedShell();
+      loadCalendar();
       await loadForecast();
       fetch('/backtest.json').then((r) => (r.ok ? r.json() : null)).then((j) => { V.bt = j; drawMetrics(); }).catch(() => {});
       S.timers.push(setInterval(() => loadForecast(), 60000));
@@ -287,6 +294,8 @@
     try { V.fc = await api(`/api/forecast?site=${V.site}`); } catch { return; }
     drawHead();
     drawPlan();
+    drawSched();
+    loadHeatmap();
   }
 
   function site() { return V.config.sites.find((s) => s.id === V.site); }
@@ -411,6 +420,188 @@
     el.innerHTML = `<h2>Audit log</h2><div class="audit">${V.audit.map((a) => `<div>${new Date(a.at).toLocaleTimeString()} · ${esc(a.actor)} · ${esc(a.action)} · ${esc(a.detail)}</div>`).join('') || '<span class="muted">Nothing yet.</span>'}</div>`;
   }
 
+  // ---------------- regional heat map ----------------
+  const WORK_LABEL = { light: 'Light work', moderate: 'Moderate work', heavy: 'Heavy work', veryheavy: 'Very heavy work' };
+  const workOpts = (sel) => Object.keys(WORK_LABEL).map((k) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${WORK_LABEL[k]}</option>`).join('');
+  const WBGT_STOPS = [[24, [44, 123, 182]], [27, [171, 217, 233]], [29, [255, 255, 191]], [31, [253, 174, 97]], [33, [215, 25, 28]], [36, [110, 0, 20]]];
+  function wbgtColor(w) {
+    if (w <= WBGT_STOPS[0][0]) return `rgb(${WBGT_STOPS[0][1]})`;
+    for (let i = 1; i < WBGT_STOPS.length; i++) {
+      const [w1, c1] = WBGT_STOPS[i];
+      const [w0, c0] = WBGT_STOPS[i - 1];
+      if (w <= w1) { const f = (w - w0) / (w1 - w0); return `rgb(${c0.map((c, k) => Math.round(c + f * (c1[k] - c))).join(',')})`; }
+    }
+    return `rgb(${WBGT_STOPS[WBGT_STOPS.length - 1][1]})`;
+  }
+  V.hmHour = Math.min(19, Math.max(5, new Date().getHours()));
+  V.hmWork = 'heavy';
+  V.calWork = 'heavy';
+
+  function drawMapShell() {
+    $('#sv-map').innerHTML = `<div class="row" style="justify-content:space-between">
+        <h2 style="margin:0">Regional heat map</h2>
+        <div class="row small"><select id="hmWork" class="btn sm" aria-label="Task type">${workOpts(V.hmWork)}</select>
+          <button class="btn sm" data-c="play" id="hmPlayBtn">▶ Play the day</button>
+          <input type="range" id="hmHour" min="5" max="19" step="1" value="${V.hmHour}" aria-label="Hour" style="width:150px" />
+          <b id="hmHourLbl" style="min-width:44px"></b></div></div>
+      <div id="map" class="map"></div>
+      <div class="row small" style="justify-content:space-between;margin-top:8px">
+        <div class="legend"><span>24</span><i></i><span>36 °C WBGT</span><span class="muted">· red outline = STOP for this task</span></div>
+        <span class="muted" id="hmNote"></span></div>
+      <p class="muted small">Each square is about 9 km of weather-model grid around the site. Use it to move crews between sites, or to see where shade and earlier starts matter most. Hover a square for details.</p>`;
+    $('#hmHour').oninput = (e) => { V.hmHour = Number(e.target.value); renderHeatmap(); };
+    $('#hmWork').onchange = (e) => { V.hmWork = e.target.value; renderHeatmap(); };
+    renderHeatmap();
+  }
+
+  async function loadHeatmap() {
+    try { V.hm = await api(`/api/heatmap?site=${V.site}`); } catch {
+      const n = $('#hmNote'); if (n) n.textContent = 'Heat map unavailable right now.';
+      return;
+    }
+    renderHeatmap();
+  }
+
+  function renderHeatmap() {
+    const lbl = $('#hmHourLbl');
+    if (lbl) lbl.textContent = `${pad2(V.hmHour)}:00`;
+    const hm = V.hm;
+    if (!hm || !$('#map')) return;
+    if (!window.L) { $('#map').innerHTML = '<p class="muted pad">The map library could not load (no internet?). The planner above still works.</p>'; return; }
+    if (!V.map) {
+      V.map = L.map('map', { scrollWheelZoom: false, zoomSnap: 0.25 });
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 14, attribution: '© OpenStreetMap contributors' }).addTo(V.map);
+      V.layer = L.layerGroup().addTo(V.map);
+      setTimeout(() => V.map && V.map.invalidateSize(), 200);
+    }
+    const half = hm.step / 2;
+    if (V.mapSite !== hm.site.id) {
+      V.mapSite = hm.site.id;
+      const lats = hm.points.map((p) => p.lat), lons = hm.points.map((p) => p.lon);
+      const bounds = [[Math.min(...lats) - half, Math.min(...lons) - half], [Math.max(...lats) + half, Math.max(...lons) + half]];
+      V.map.fitBounds(bounds);
+      setTimeout(() => { if (V.map) { V.map.invalidateSize(); V.map.fitBounds(bounds); } }, 300);
+    }
+    V.layer.clearLayers();
+    let stop = 0, lo = 99, hi = -99;
+    for (const p of hm.points) {
+      const r = p.hourly.find((x) => Number(x.time.slice(11, 13)) === V.hmHour);
+      if (!r) continue;
+      const a = Heat.assess({ workload: V.hmWork, clothing: 'standard', daysOnSite: 30, t: r.t, rh: r.rh, sw: r.sw, wind: r.wind, time: r.time, middayBan: hm.site.middayBan });
+      if (a.band === 'red') stop++;
+      lo = Math.min(lo, a.wbgt); hi = Math.max(hi, a.wbgt);
+      const plan = a.band === 'red' ? 'STOP' : a.workMin === 60 ? 'normal work' : `${a.workMin} min work / ${a.restMin} min rest`;
+      L.rectangle([[p.lat - half, p.lon - half], [p.lat + half, p.lon + half]], {
+        color: '#7a0000', weight: a.band === 'red' ? 2 : 0, fillColor: wbgtColor(a.wbgt), fillOpacity: 0.72,
+      }).bindTooltip(`<b>${a.wbgt.toFixed(1)} °C WBGT</b> · ${Math.round(r.t)} °C, ${Math.round(r.rh)}% RH<br>${WORK_LABEL[V.hmWork]}: ${plan}${a.middayBan ? ' (midday ban)' : ''}`).addTo(V.layer);
+    }
+    L.circleMarker([hm.site.lat, hm.site.lon], { radius: 7, color: '#111', weight: 2, fillColor: '#fff', fillOpacity: 1 }).bindTooltip(esc(hm.site.name)).addTo(V.layer);
+    const n = $('#hmNote');
+    if (n && lo < 99) n.textContent = `${hm.mode === 'replay' ? `Replay ${hm.date}` : 'Live forecast'}${hm.stale ? ' (saved data)' : ''} · ${stop} of ${hm.points.length} squares STOP · ${lo.toFixed(1)}–${hi.toFixed(1)} °C`;
+  }
+
+  function togglePlay() {
+    const btn = $('#hmPlayBtn');
+    if (V.hmPlay) { clearInterval(V.hmPlay); V.hmPlay = null; if (btn) btn.textContent = '▶ Play the day'; return; }
+    if (btn) btn.textContent = '❚❚ Pause';
+    V.hmPlay = setInterval(() => {
+      V.hmHour = V.hmHour >= 19 ? 5 : V.hmHour + 1;
+      const s = $('#hmHour'); if (s) s.value = V.hmHour;
+      renderHeatmap();
+    }, 800);
+    S.timers.push(V.hmPlay);
+  }
+
+  // ---------------- summer heat calendar ----------------
+  async function loadCalendar() {
+    try { const r = await fetch('/heatcalendar.json'); V.cal = r.ok ? await r.json() : null; } catch { V.cal = null; }
+    drawCalendar();
+  }
+
+  function drawCalendar() {
+    const el = $('#sv-cal');
+    if (!el) return;
+    if (!V.cal) { el.innerHTML = '<h2>Summer heat calendar</h2><p class="muted small">Calendar data not available.</p>'; return; }
+    const cw = 7, ch = 13, left = 34, top = 18, H = V.cal.firstHour, days = V.cal.days, rows = days[0].h.length;
+    const counts = { green: 0, yellow: 0, orange: 0, red: 0 };
+    let cells = '', need = 0, outside = 0;
+    days.forEach((d, i) => d.h.forEach(([t, rh, sw, wind], k) => {
+      const hr = H + k;
+      const time = `${d.date}T${pad2(hr)}:00`;
+      const a = Heat.assess({ workload: V.calWork, clothing: 'standard', daysOnSite: 30, t, rh, sw, wind, time });
+      counts[a.band]++;
+      if (a.band === 'red' || a.band === 'orange') { need++; if (!Heat.inMiddayBan(time)) outside++; }
+      cells += `<rect class="f-${a.band}" x="${left + i * cw}" y="${top + k * ch}" width="${cw - 1}" height="${ch - 1}"><title>${d.date} ${pad2(hr)}:00 · WBGT ${a.wbgt} °C · ${a.band === 'red' ? 'STOP' : `${a.workMin} min work per hour`}</title></rect>`;
+    }));
+    const bi = days.findIndex((d) => d.date.slice(5) >= '06-15');
+    const bj = days.map((d) => d.date.slice(5) <= '09-15').lastIndexOf(true);
+    const ban = bi >= 0 ? `<rect x="${left + bi * cw - 1}" y="${top + (12 - H) * ch - 1}" width="${(bj - bi + 1) * cw + 1}" height="${3 * ch + 1}" fill="none" stroke="#111" stroke-width="2" stroke-dasharray="5 3" />` : '';
+    const months = days.map((d, i) => (d.date.endsWith('-01') ? `<text x="${left + i * cw}" y="11" class="cal-t">${new Date(`${d.date}T00:00`).toLocaleString('en', { month: 'short' })}</text>` : '')).join('');
+    const hours = Array.from({ length: rows }, (_, k) => (k % 2 === 0 ? `<text x="${left - 5}" y="${top + k * ch + 10}" text-anchor="end" class="cal-t">${pad2(H + k)}</text>` : '')).join('');
+    const total = days.length * rows;
+    const p = (n) => Math.round((n / total) * 100);
+    el.innerHTML = `<div class="row" style="justify-content:space-between"><h2 style="margin:0">Summer heat calendar: ${esc(V.cal.site)}, Jun–Sep 2025</h2>
+        <select id="calWork" class="btn sm" aria-label="Task type">${workOpts(V.calWork)}</select></div>
+      <div class="planner" style="margin-top:8px"><svg width="${left + days.length * cw + 4}" height="${top + rows * ch + 4}" role="img" aria-label="Heat calendar">${months}${hours}${cells}${ban}</svg></div>
+      <div class="row small" style="margin:6px 0"><span><span class="dot d-green"></span>normal</span><span><span class="dot d-yellow"></span>caution</span><span><span class="dot d-orange"></span>work/rest cycles</span><span><span class="dot d-red"></span>STOP</span><span>▭ dashed = UAE midday ban</span></div>
+      <p class="small">${WORK_LABEL[V.calWork]}: <b>${p(counts.red)}%</b> of working hours were STOP and ${p(counts.orange)}% needed work/rest cycles. Only <b>${need ? Math.round(((need - outside) / need) * 100) : 0}%</b> of the hours that needed breaks or a stop were inside the midday ban.</p>
+      <p class="muted small">Each column is a day, each row an hour (05:00–19:00). Hover for details. ${esc(V.cal.source)}, run through the same engine as the live plan.</p>`;
+    $('#calWork').onchange = (e) => { V.calWork = e.target.value; drawCalendar(); };
+  }
+
+  // ---------------- smart task scheduler ----------------
+  V.tasks = local.get('hm_tasks', null) || [
+    { name: 'Concrete pour', workload: 'veryheavy', hours: 2 },
+    { name: 'Rebar tying', workload: 'heavy', hours: 3 },
+    { name: 'Formwork', workload: 'moderate', hours: 3 },
+    { name: 'Site survey', workload: 'light', hours: 2 },
+  ];
+  const fmtMin = (m) => (m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}`);
+
+  // One crew, tasks one after another. Heaviest task first gets the hours where it can work the most.
+  function schedule(tasks, hours, ban) {
+    const used = new Set();
+    const order = tasks.map((task, idx) => ({ task, idx })).sort((a, b) => Heat.WORKLOAD[b.task.workload] - Heat.WORKLOAD[a.task.workload]);
+    return order.map(({ task, idx }) => {
+      const plan = Heat.assessDay(hours, { workload: task.workload, clothing: 'standard', daysOnSite: 30 }, ban);
+      const need = Math.round(task.hours * 60);
+      const cand = plan.map((p, i) => ({ p, i })).filter((x) => !used.has(x.i) && x.p.workMin > 0)
+        .sort((a, b) => b.p.workMin - a.p.workMin || a.i - b.i);
+      let got = 0;
+      const chosen = [];
+      for (const c of cand) { if (got >= need) break; chosen.push(c); got += c.p.workMin; }
+      chosen.sort((a, b) => a.i - b.i);
+      chosen.forEach((c) => used.add(c.i));
+      const segs = [];
+      chosen.forEach((c) => { const last = segs[segs.length - 1]; if (last && last.end === c.i - 1) last.end = c.i; else segs.push({ start: c.i, end: c.i }); });
+      const from = (i) => plan[i].time.slice(11, 16);
+      const to = (i) => `${pad2(Number(plan[i].time.slice(11, 13)) + 1)}:00`;
+      return { task, idx, ok: got >= need, got: Math.min(got, need), rest: chosen.reduce((s, c) => s + c.p.restMin, 0), segments: segs.map((g) => `${from(g.start)}–${to(g.end)}`) };
+    }).sort((a, b) => a.idx - b.idx);
+  }
+
+  function drawSchedShell() {
+    $('#sv-sched').innerHTML = `<h2>Smart task scheduler</h2>
+      <p class="muted small">List today's tasks for one crew. HeatMitra gives the heaviest work the coolest hours, builds in the rest breaks, and flags work that cannot be done safely today.</p>
+      <div id="schedList"></div>
+      <div class="row" style="margin-top:10px"><input id="tName" placeholder="Task name" class="btn sm" style="flex:1;min-width:110px" maxlength="40" />
+        <select id="tWork" class="btn sm" aria-label="Task type">${workOpts('heavy')}</select>
+        <input id="tHours" type="number" min="0.5" max="10" step="0.5" value="2" class="btn sm" style="width:64px" aria-label="Hours of work" />
+        <button class="btn sm primary" data-c="addTask">Add</button></div>`;
+  }
+
+  function drawSched() {
+    const el = $('#schedList');
+    if (!el || !V.fc) return;
+    const hours = V.fc.hourly.filter((r) => { const h = Number(r.time.slice(11, 13)); return h >= 5 && h <= 19; });
+    const res = schedule(V.tasks, hours, site().middayBan);
+    el.innerHTML = res.length ? res.map((r) => `<div class="sched ${r.ok ? '' : 'bad'}">
+        <div class="row" style="justify-content:space-between"><b>${esc(r.task.name)}</b><button class="btn sm" data-deltask="${r.idx}" aria-label="Remove task">✕</button></div>
+        <div class="small">${WORK_LABEL[r.task.workload]}, ${fmtMin(Math.round(r.task.hours * 60))} → <b>${r.segments.length ? r.segments.join(', ') : 'no safe hours left'}</b></div>
+        <div class="small ${r.ok ? 'muted' : ''}">${r.ok ? `${r.rest} min of rest breaks built in` : `Only ${fmtMin(r.got)} fits safely today. Split it across days, start earlier, or move it to a night shift.`}</div></div>`).join('')
+      : '<p class="muted small">No tasks yet.</p>';
+  }
+
   // ---------------- one click handler for everything ----------------
   document.addEventListener('click', async (e) => {
     const b = e.target.closest('button, .chip');
@@ -426,7 +617,17 @@
       if (w === 'end') { await api('/api/shift/end', { method: 'POST' }).catch(() => {}); local.del('hm_plan'); W.view = null; W.me = null; return pollWorker(); }
       if (b.dataset.act) { await api(`/api/alerts/${b.dataset.id}/${b.dataset.act}`, { method: 'POST', body: {} }); return pollConsole(); }
       if (b.dataset.silent) { await api(`/api/demo/silent/${b.dataset.silent}`, { method: 'POST' }); return pollConsole(); }
+      if (b.dataset.deltask) { V.tasks.splice(Number(b.dataset.deltask), 1); local.set('hm_tasks', V.tasks); return drawSched(); }
       const c = b.dataset.c;
+      if (c === 'play') return togglePlay();
+      if (c === 'addTask') {
+        const name = $('#tName').value.trim() || 'Task';
+        const hours = Math.min(10, Math.max(0.5, Number($('#tHours').value) || 1));
+        V.tasks.push({ name: name.slice(0, 40), workload: $('#tWork').value, hours });
+        local.set('hm_tasks', V.tasks);
+        $('#tName').value = '';
+        return drawSched();
+      }
       if (c === 'replay') return setMode($('#replayDate').value);
       if (c === 'live') return setMode(null);
       if (c === 'crew') { await api('/api/demo/crew', { method: 'POST' }); return pollConsole(); }

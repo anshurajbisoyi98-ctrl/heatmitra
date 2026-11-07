@@ -28,6 +28,10 @@ Deploy: `Dockerfile` and `render.yaml` are included (single process, `PORT` env 
 4. Back in tab 1, wait for **"Are you OK?"** (about 40 s in the red band). Tap **I feel unwell**, then pick *Confused*. The worker gets the emergency screen with a call button. The supervisor sees "emergency" but no symptoms.
 5. **Tab 3:** sign in as **Site first-aider**. Ravi's symptoms are visible because he consented; Mohammed's case shows none. Press *Attending*, then *Resolve*. Every step is in the audit log.
 6. Turn off the network in tab 1 (dev tools → Offline). The app keeps showing the saved plan, and red-flag advice still works.
+7. In the supervisor console, scroll down:
+   - **Regional heat map:** press **Play the day** to watch heat move across the area hour by hour. Red outlines mark where the chosen task must stop.
+   - **Smart task scheduler:** gives the heaviest tasks the coolest hours and flags work that can't be done safely today.
+   - **Summer heat calendar:** every hour of summer 2025, with the midday-ban window outlined. Switch the task type to compare.
 
 ## Layout
 
@@ -37,6 +41,8 @@ src/weather.js       Open-Meteo forecast + ERA5 replay, disk cache, stale fallba
 public/heat.js       risk engine (shared by server and phone, works offline)
 public/              worker app + supervisor / first-aider consoles (no build step)
 scripts/backtest.js  2025 Abu Dhabi back-test -> docs/BACKTEST.md
+scripts/calendar.js  summer 2025 weather for the heat calendar -> public/heatcalendar.json
+data/fallback/       saved real weather days used if Open-Meteo is unreachable
 docs/SUBMISSION.md   technical documentation, assumptions, limitations
 SYSTEM_PROMPT.md     build brief used for this one-day build
 ```

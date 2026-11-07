@@ -90,4 +90,59 @@ async function forecast(site, replayDate) {
   return p;
 }
 
-module.exports = { forecast };
+async function getJson(url) {
+  let r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (r.status === 429) {
+    await new Promise((ok) => setTimeout(ok, 1500));
+    r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  }
+  if (!r.ok) throw new Error(`Open-Meteo HTTP ${r.status}`);
+  return r.json();
+}
+
+// An n×n grid of points around the site, for the regional heat map. One request for all points.
+async function grid(site, replayDate, n = 7, step = 0.08) {
+  const key = `grid_${site.id}_${replayDate || 'live'}`;
+  const file = path.join(CACHE_DIR, `${key}.json`);
+  const hit = cache.get(key);
+  if (hit && !hit.stale && (replayDate || Date.now() - hit.fetchedAt < LIVE_TTL)) return hit;
+  const lats = [], lons = [];
+  const half = (n - 1) / 2;
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      lats.push(Number((site.lat + (half - i) * step).toFixed(3)));
+      lons.push(Number((site.lon + (j - half) * step).toFixed(3)));
+    }
+  }
+  const q = new URLSearchParams({ latitude: lats.join(','), longitude: lons.join(','), hourly: HOURLY, timezone: site.tz });
+  let base = 'https://api.open-meteo.com/v1/forecast';
+  if (replayDate) {
+    base = 'https://archive-api.open-meteo.com/v1/archive';
+    q.set('start_date', replayDate);
+    q.set('end_date', replayDate);
+  } else q.set('forecast_days', '1');
+  try {
+    const j = await getJson(`${base}?${q}`);
+    const arr = Array.isArray(j) ? j : [j];
+    const points = arr.map((p, k) => ({ lat: lats[k], lon: lons[k], hourly: toRows(p) }));
+    const out = {
+      siteId: site.id, mode: replayDate ? 'replay' : 'live', date: replayDate || points[0].hourly[0].time.slice(0, 10),
+      source: replayDate ? 'Open-Meteo historical weather (ERA5 reanalysis)' : 'Open-Meteo forecast',
+      n, step, fetchedAt: Date.now(), stale: false, points,
+    };
+    cache.set(key, out);
+    fs.writeFile(file, JSON.stringify(out), () => {});
+    return out;
+  } catch (err) {
+    if (hit) return { ...hit, stale: true };
+    if (fs.existsSync(file)) return { ...JSON.parse(fs.readFileSync(file, 'utf8')), stale: true };
+    const bundled = path.join(FALLBACK_DIR, `grid-${site.id}.json`);
+    if (fs.existsSync(bundled)) {
+      const fb = JSON.parse(fs.readFileSync(bundled, 'utf8'));
+      return { ...fb, stale: true, source: `Saved ERA5 day ${fb.date} (weather service unavailable: ${err.message})` };
+    }
+    throw err;
+  }
+}
+
+module.exports = { forecast, grid };

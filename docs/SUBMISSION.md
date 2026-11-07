@@ -18,6 +18,9 @@ Heat strain in construction and logistics builds quietly and can turn into heat 
 | Worker-first governance | Consent screen; symptoms go only to the first-aider and only with consent; no GPS; supervisors see bands and check-in status, never symptoms; no endpoint returns one worker's history; 24 h retention; audit log |
 | Field-ready, safe fallback | The risk engine runs on the phone too; the last plan is cached; check-ins queue offline; red-flag advice and the emergency call button work with no network. The server serves cached weather if Open-Meteo is down. If a phone goes silent, the server escalates |
 | Supervisor decision support | Hour-by-hour planner per task type, best window for heavy work, crew board with counts by band, alerts to acknowledge |
+| Regional heat map | A 7×7 grid (≈ 9 km squares) of forecast or replayed weather around the site, one request for all points, coloured by estimated WBGT. Red outlines show where the chosen task must stop. An hour slider and "play the day" animation show how heat moves between the coast and inland, so contractors can move crews or shift start times |
+| Smart task scheduler | The supervisor lists the day's tasks (type and hours of work). HeatMitra gives the heaviest task the hours where it can work the most, builds in the rest breaks, and flags work that can't be done safely today (split it, start earlier, or move it to a night shift) |
+| Summer heat calendar | Every working hour of summer 2025 at the site (ERA5) as a day × hour heatmap for any task type, with the midday ban outlined. For heavy work, 55% of hours were STOP, and only 17% of the hours that needed breaks or a stop fell inside the ban |
 | Safety and productivity measures | Live: alerts, prompt response rate, median time to a human response, cases that reached the first-aider, signal-lost alerts, emergencies. Back-test: hit rate, false alarms, under-warning, lead time, stop hours per day |
 
 ### Escalation ladder
