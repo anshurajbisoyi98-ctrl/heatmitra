@@ -258,7 +258,16 @@ async function api(req, res, url) {
   if (m === 'GET' && p === '/api/heatmap') {
     const site = sites[url.searchParams.get('site')];
     if (!site) return send(res, 404, { error: 'no such site' });
-    const g = await weather.grid(site, site.replayDate);
+    let g;
+    const raw = url.searchParams.get('pts');
+    if (raw) {
+      // H3 hexagon centres from the browser: at most 100, all within 0.6° of the site.
+      const coords = raw.split(';').slice(0, 101).map((s) => s.split(',').map(Number));
+      const ok = coords.length <= 100 && coords.every((c) => c.length === 2 && c.every(Number.isFinite)
+        && Math.abs(c[0] - site.lat) <= 0.6 && Math.abs(c[1] - site.lon) <= 0.6);
+      if (!ok) return send(res, 400, { error: 'pts must be up to 100 "lat,lon" pairs within 0.6° of the site' });
+      g = await weather.points(site, site.replayDate, coords.map(([a, b]) => [Math.round(a * 1000) / 1000, Math.round(b * 1000) / 1000]));
+    } else g = await weather.grid(site, site.replayDate);
     const work = (r) => { const h = Number(r.time.slice(11, 13)); return h >= 5 && h <= 19; };
     return send(res, 200, {
       site: { id: site.id, name: site.name, lat: site.lat, lon: site.lon, middayBan: site.middayBan },

@@ -145,4 +145,41 @@ async function grid(site, replayDate, n = 7, step = 0.08) {
   }
 }
 
-module.exports = { forecast, grid };
+// Weather at arbitrary points near a site (the browser sends H3 hexagon centres).
+// If Open-Meteo is unavailable, each point takes the nearest point of the saved square grid.
+async function points(site, replayDate, coords) {
+  const sig = coords.map(([a, b]) => `${a},${b}`).join(';');
+  const key = `pts_${site.id}_${replayDate || 'live'}_${require('crypto').createHash('sha1').update(sig).digest('hex').slice(0, 10)}`;
+  const hit = cache.get(key);
+  if (hit && !hit.stale && (replayDate || Date.now() - hit.fetchedAt < LIVE_TTL)) return hit;
+  const q = new URLSearchParams({ latitude: coords.map((c) => c[0]).join(','), longitude: coords.map((c) => c[1]).join(','), hourly: HOURLY, timezone: site.tz });
+  let base = 'https://api.open-meteo.com/v1/forecast';
+  if (replayDate) {
+    base = 'https://archive-api.open-meteo.com/v1/archive';
+    q.set('start_date', replayDate);
+    q.set('end_date', replayDate);
+  } else q.set('forecast_days', '1');
+  try {
+    const j = await getJson(`${base}?${q}`);
+    const arr = Array.isArray(j) ? j : [j];
+    const pts = arr.map((p, k) => ({ lat: coords[k][0], lon: coords[k][1], hourly: toRows(p) }));
+    const out = {
+      siteId: site.id, mode: replayDate ? 'replay' : 'live', date: replayDate || pts[0].hourly[0].time.slice(0, 10),
+      source: replayDate ? 'Open-Meteo historical weather (ERA5 reanalysis)' : 'Open-Meteo forecast',
+      fetchedAt: Date.now(), stale: false, points: pts,
+    };
+    cache.set(key, out);
+    if (cache.size > 200) cache.delete(cache.keys().next().value);
+    return out;
+  } catch (err) {
+    if (hit) return { ...hit, stale: true };
+    const g = await grid(site, replayDate); // may itself be the saved fallback
+    const near = (lat, lon) => g.points.reduce((b, p) => ((p.lat - lat) ** 2 + (p.lon - lon) ** 2 < (b.lat - lat) ** 2 + (b.lon - lon) ** 2 ? p : b));
+    return {
+      ...g, stale: true, source: `${g.source} · nearest saved grid point per hexagon (${err.message})`,
+      points: coords.map(([lat, lon]) => ({ lat, lon, hourly: near(lat, lon).hourly })),
+    };
+  }
+}
+
+module.exports = { forecast, grid, points };

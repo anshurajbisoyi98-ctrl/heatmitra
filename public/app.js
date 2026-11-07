@@ -433,6 +433,8 @@
     }
     return `rgb(${WBGT_STOPS[WBGT_STOPS.length - 1][1]})`;
   }
+  const H3_RES = 6; // ≈ 36 km² hexagons
+  const H3_K = 4; // rings around the site's hexagon: 61 hexagons in all
   V.hmHour = Math.min(19, Math.max(5, new Date().getHours()));
   V.hmWork = 'heavy';
   V.calWork = 'heavy';
@@ -448,17 +450,28 @@
       <div class="row small" style="justify-content:space-between;margin-top:8px">
         <div class="legend"><span>24</span><i></i><span>36 °C WBGT</span><span class="muted">· red outline = STOP for this task</span></div>
         <span class="muted" id="hmNote"></span></div>
-      <p class="muted small">Each square is about 9 km of weather-model grid around the site. Use it to move crews between sites, or to see where shade and earlier starts matter most. Hover a square for details.</p>`;
+      <p class="muted small">Uber H3 hexagonal grid, resolution ${H3_RES} (about 36 km² per hexagon, ${3 * H3_K * (H3_K + 1) + 1} hexagons around the site). Each hexagon samples the weather model at its own centre. Hexagons have equal area and equal-distance neighbours, and the H3 index lets this join other H3 data later (incidents, sensors, crew locations). Detail is still limited by the weather model's ~9–11 km grid. Hover a hexagon for details.</p>`;
     $('#hmHour').oninput = (e) => { V.hmHour = Number(e.target.value); renderHeatmap(); };
     $('#hmWork').onchange = (e) => { V.hmWork = e.target.value; renderHeatmap(); };
     renderHeatmap();
   }
 
+  // H3 hexagons around the site; falls back to the server's square grid if the H3 library is missing.
   async function loadHeatmap() {
-    try { V.hm = await api(`/api/heatmap?site=${V.site}`); } catch {
+    let q = `/api/heatmap?site=${V.site}`;
+    let cells = null;
+    if (window.h3) {
+      try {
+        const s = site();
+        cells = h3.gridDisk(h3.latLngToCell(s.lat, s.lon, H3_RES), H3_K);
+        q += `&pts=${cells.map((c) => { const [a, b] = h3.cellToLatLng(c); return `${a.toFixed(3)},${b.toFixed(3)}`; }).join(';')}`;
+      } catch { cells = null; q = `/api/heatmap?site=${V.site}`; }
+    }
+    try { V.hm = await api(q); } catch {
       const n = $('#hmNote'); if (n) n.textContent = 'Heat map unavailable right now.';
       return;
     }
+    V.hm.cells = cells && cells.length === V.hm.points.length ? cells : null;
     renderHeatmap();
   }
 
@@ -474,30 +487,36 @@
       V.layer = L.layerGroup().addTo(V.map);
       setTimeout(() => V.map && V.map.invalidateSize(), 200);
     }
-    const half = hm.step / 2;
-    if (V.mapSite !== hm.site.id) {
-      V.mapSite = hm.site.id;
-      const lats = hm.points.map((p) => p.lat), lons = hm.points.map((p) => p.lon);
-      const bounds = [[Math.min(...lats) - half, Math.min(...lons) - half], [Math.max(...lats) + half, Math.max(...lons) + half]];
+    const hex = Boolean(hm.cells && window.h3);
+    const half = (hm.step || 0.08) / 2;
+    const shape = (p, i) => (hex ? h3.cellToBoundary(hm.cells[i])
+      : [[p.lat - half, p.lon - half], [p.lat - half, p.lon + half], [p.lat + half, p.lon + half], [p.lat + half, p.lon - half]]);
+    const shapes = hm.points.map(shape);
+    const viewKey = `${hm.site.id}:${hex ? 'h3' : 'sq'}`;
+    if (V.mapSite !== viewKey) {
+      V.mapSite = viewKey;
+      const bounds = L.latLngBounds(shapes.flat());
       V.map.fitBounds(bounds);
       setTimeout(() => { if (V.map) { V.map.invalidateSize(); V.map.fitBounds(bounds); } }, 300);
     }
     V.layer.clearLayers();
     let stop = 0, lo = 99, hi = -99;
-    for (const p of hm.points) {
+    hm.points.forEach((p, i) => {
       const r = p.hourly.find((x) => Number(x.time.slice(11, 13)) === V.hmHour);
-      if (!r) continue;
+      if (!r) return;
       const a = Heat.assess({ workload: V.hmWork, clothing: 'standard', daysOnSite: 30, t: r.t, rh: r.rh, sw: r.sw, wind: r.wind, time: r.time, middayBan: hm.site.middayBan });
       if (a.band === 'red') stop++;
       lo = Math.min(lo, a.wbgt); hi = Math.max(hi, a.wbgt);
       const plan = a.band === 'red' ? 'STOP' : a.workMin === 60 ? 'normal work' : `${a.workMin} min work / ${a.restMin} min rest`;
-      L.rectangle([[p.lat - half, p.lon - half], [p.lat + half, p.lon + half]], {
-        color: '#7a0000', weight: a.band === 'red' ? 2 : 0, fillColor: wbgtColor(a.wbgt), fillOpacity: 0.72,
-      }).bindTooltip(`<b>${a.wbgt.toFixed(1)} °C WBGT</b> · ${Math.round(r.t)} °C, ${Math.round(r.rh)}% RH<br>${WORK_LABEL[V.hmWork]}: ${plan}${a.middayBan ? ' (midday ban)' : ''}`).addTo(V.layer);
-    }
+      L.polygon(shapes[i], {
+        color: a.band === 'red' ? '#7a0000' : '#ffffff', weight: a.band === 'red' ? 2 : 0.6, opacity: a.band === 'red' ? 1 : 0.5,
+        fillColor: wbgtColor(a.wbgt), fillOpacity: 0.72,
+      }).bindTooltip(`<b>${a.wbgt.toFixed(1)} °C WBGT</b> · ${Math.round(r.t)} °C, ${Math.round(r.rh)}% RH<br>${WORK_LABEL[V.hmWork]}: ${plan}${a.middayBan ? ' (midday ban)' : ''}${hex ? `<br><span style="opacity:.7">H3 ${hm.cells[i]}</span>` : ''}`).addTo(V.layer);
+    });
     L.circleMarker([hm.site.lat, hm.site.lon], { radius: 7, color: '#111', weight: 2, fillColor: '#fff', fillOpacity: 1 }).bindTooltip(esc(hm.site.name)).addTo(V.layer);
     const n = $('#hmNote');
-    if (n && lo < 99) n.textContent = `${hm.mode === 'replay' ? `Replay ${hm.date}` : 'Live forecast'}${hm.stale ? ' (saved data)' : ''} · ${stop} of ${hm.points.length} squares STOP · ${lo.toFixed(1)}–${hi.toFixed(1)} °C`;
+    const unit = hex ? `H3 r${H3_RES} hexagons` : 'squares';
+    if (n && lo < 99) n.textContent = `${hm.mode === 'replay' ? `Replay ${hm.date}` : 'Live forecast'}${hm.stale ? ' (saved data)' : ''} · ${stop} of ${hm.points.length} ${unit} STOP · ${lo.toFixed(1)}–${hi.toFixed(1)} °C`;
   }
 
   function togglePlay() {

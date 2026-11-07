@@ -29,7 +29,7 @@ Deploy: `Dockerfile` and `render.yaml` are included (single process, `PORT` env 
 5. **Tab 3:** sign in as **Site first-aider**. Ravi's symptoms are visible because he consented; Mohammed's case shows none. Press *Attending*, then *Resolve*. Every step is in the audit log.
 6. Turn off the network in tab 1 (dev tools → Offline). The app keeps showing the saved plan, and red-flag advice still works.
 7. In the supervisor console, scroll down:
-   - **Regional heat map:** press **Play the day** to watch heat move across the area hour by hour. Red outlines mark where the chosen task must stop.
+   - **Regional heat map** (Uber H3 hexagons): press **Play the day** to watch heat move across the area hour by hour. Red outlines mark where the chosen task must stop.
    - **Smart task scheduler:** gives the heaviest tasks the coolest hours and flags work that can't be done safely today.
    - **Summer heat calendar:** every hour of summer 2025, with the midday-ban window outlined. Switch the task type to compare.
 
