@@ -18,6 +18,7 @@
   const BAND_ICON = { green: '✓', yellow: '!', orange: '⏸', red: '✋' };
   const STAGES = ['worker', 'supervisor', 'medic'];
   const STAGE_LABEL = { worker: 'Worker', supervisor: 'Supervisor', medic: 'First-aider' };
+  const OUTCOME_LABEL = { '': 'Outcome…', cramps: 'Heat cramps', exhaustion: 'Heat exhaustion', stroke: 'Suspected heat stroke', notheat: 'Not heat-related', falsealarm: 'False alarm / fine' };
   const REASON = { checkin_due: 'Check-in due', no_signal: 'Phone signal lost', reported_unwell: 'Reported feeling unwell', high_strain: 'High heat strain (wearable)' };
 
   function t(key, vars) {
@@ -28,11 +29,11 @@
   }
   const dir = () => (I18N.rtl.includes(S.lang) ? 'rtl' : 'ltr');
 
-  function say(text) {
+  function say(text, lang = S.lang) {
     if (!text || !('speechSynthesis' in window)) return;
     try {
       const u = new SpeechSynthesisUtterance(text);
-      u.lang = I18N.voice[S.lang] || 'en-IN';
+      u.lang = I18N.voice[lang] || 'en-IN';
       speechSynthesis.cancel();
       speechSynthesis.speak(u);
     } catch {}
@@ -141,10 +142,27 @@
   }
 
   function tick() {
+    const fmt = (at) => { const s = Math.max(0, Math.round((at - (Date.now() + W.offset)) / 1000)); return `${Math.floor(s / 60)}:${pad2(s % 60)}`; };
     const el = $('#cdown');
-    if (!el || !W.me || !W.me.nextCheckinAt) return;
-    const s = Math.max(0, Math.round((W.me.nextCheckinAt - (Date.now() + W.offset)) / 1000));
-    el.textContent = `${Math.floor(s / 60)}:${pad2(s % 60)}`;
+    if (el && W.me && W.me.nextCheckinAt) el.textContent = fmt(W.me.nextCheckinAt);
+    const rc = $('#restCd');
+    if (rc && W.me && W.me.rest && W.me.rest.endsAt) rc.textContent = fmt(W.me.rest.endsAt);
+  }
+
+  // Work/rest cycle from the plan: tells the worker when to rest and lets them confirm it.
+  function restHtml(me) {
+    const r = me.rest;
+    if (!r || !r.endsAt) return '';
+    if (r.phase === 'rest') {
+      if (!r.acked && W.restSaid !== r.endsAt) {
+        W.restSaid = r.endsAt;
+        say(t('restNow'));
+        if (navigator.vibrate) navigator.vibrate([300, 150, 300]);
+      }
+      return `<div class="card rest-now"><div class="row" style="justify-content:space-between"><b>⏸ ${t('restNow')}</b><span class="timer" id="restCd" dir="ltr"></span></div>
+        ${r.acked ? `<div><b>${t('resting')}</b></div>` : `<button class="btn big" data-w="rest" style="margin-top:8px">🌴 ${t('restBtn')}</button>`}</div>`;
+    }
+    return `<div class="card row" style="justify-content:space-between"><span>⏸ ${t('nextRest')}</span><span class="timer" id="restCd" dir="ltr"></span></div>`;
   }
 
   function drawShiftForm(me) {
@@ -187,13 +205,15 @@
       <div class="band b-${b}">
         <div class="row"><span class="icon">${BAND_ICON[b]}</span><span class="label">${t(`b_${b}`)}</span></div>
         <div class="act">${t(`a_${b}`)}</div>
-        ${c.middayBan ? `<div class="act"><b>${t('ban')}</b></div>` : ''}
+        ${c.middayBan ? `<div class="act"><b>${t('ban', { start: c.banStart, end: c.banEnd })}</b></div>` : ''}
+        ${c.ruleStop ? `<div class="act"><b>${t('ruleStop', { w: c.wbgt, lim: c.ruleLimit })}</b></div>` : ''}
         <div class="meter" dir="ltr" aria-hidden="true"><span style="left:${Math.max(0, Math.min(100, ((c.wbgtEff - c.limit + 6) / 12) * 100))}%"></span></div>
         <div class="meta" dir="ltr">WBGT ≈ ${c.wbgtEff}°C · limit ${c.limit}°C · ${esc((c.time || '').slice(11))} ${replay} ${stale}</div>
       </div>
       <div class="card"><h2>${t('plan')}</h2><div class="split">
         <div class="box"><div class="num">${c.workMin}</div>${t('work')} (${t('min')})</div>
         <div class="box"><div class="num">${c.restMin}</div>${t('rest')} (${t('min')})</div></div></div>
+      ${restHtml(me)}
       ${wearHtml()}
       <div class="row" style="margin-bottom:12px"><button class="btn" data-w="hyd" style="flex:1">💧 ${t('hyd')}</button></div>
       ${me.rise ? `<div class="notice rise">${t('rise', { time: me.rise.time.slice(11), band: t(`b_${me.rise.band}`) })}</div>` : ''}
@@ -341,7 +361,8 @@
   }
 
   // ---------------- supervisor + first-aider ----------------
-  const V = { site: null, fc: null, crew: null, alerts: [], audit: [], bt: null, config: null };
+  const V = { site: null, fc: null, crew: null, alerts: [], audit: [], bt: null, config: null, outcomes: {} };
+  document.addEventListener('change', (e) => { if (e.target.dataset && e.target.dataset.outcomeFor) V.outcomes[e.target.dataset.outcomeFor] = e.target.value; });
 
   async function renderConsole() {
     clearTimers();
@@ -353,12 +374,14 @@
         <div class="card" style="grid-column:1/-1" id="sv-plan"></div>
         <div class="card" style="grid-column:1/-1" id="sv-map"></div>
         <div class="card" id="sv-crew"></div><div class="card" id="sv-alerts"></div>
-        <div class="card" id="sv-sched"></div><div class="card" id="sv-metrics"></div>
+        <div class="card" id="sv-sched"></div><div class="card" id="sv-logi"></div>
+        <div class="card" style="grid-column:1/-1" id="sv-metrics"></div>
         <div class="card" style="grid-column:1/-1" id="sv-cal"></div>
         <div class="card" id="sv-audit"></div></div>`;
       V.map = null; V.mapSite = null; V.hmPlay = null;
       drawMapShell();
       drawSchedShell();
+      drawLogiShell();
       loadCalendar();
       await loadForecast();
       fetch('/backtest.json').then((r) => (r.ok ? r.json() : null)).then((j) => { V.bt = j; drawMetrics(); }).catch(() => {});
@@ -383,6 +406,7 @@
     drawHead();
     drawPlan();
     drawSched();
+    drawLogi();
     loadHeatmap();
   }
 
@@ -398,12 +422,19 @@
       <div class="row">
         <select id="siteSel" class="btn sm">${V.config.sites.map((x) => `<option value="${x.id}" ${x.id === V.site ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>
         <input type="date" id="replayDate" class="btn sm" style="width:auto" value="${esc(s.replayDate || '2025-06-10')}" min="2024-01-01" />
+        <select id="ruleSel" class="btn sm" aria-label="Country rules">${[['', 'No midday ban']].concat(Object.entries(Heat.RULES).map(([k, r]) => [k, r.name])).map(([k, n]) => `<option value="${k}" ${String(s.middayBan || '') === k ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
         <button class="btn sm" data-c="replay">Replay day</button><button class="btn sm" data-c="live">Live</button>
+        <button class="btn sm" data-c="brief">📋 Morning briefing</button>
         <input type="number" id="calWbgt" class="btn sm" style="width:118px" step="0.1" min="10" max="45" placeholder="Sensor WBGT °C" aria-label="On-site WBGT meter reading" />
         <button class="btn sm" data-c="calib" title="Enter a reading from an on-site WBGT meter; leave empty to clear">Calibrate</button>
         ${V.config.demo ? '<button class="btn sm primary" data-c="crew">Add simulated crew</button>' : ''}
       </div></div></div>`;
     $('#siteSel').onchange = (e) => { V.site = e.target.value; loadForecast(); pollConsole(); };
+    $('#ruleSel').onchange = async (e) => {
+      const ns = await api('/api/site/rule', { method: 'POST', body: { siteId: V.site, rule: e.target.value } });
+      V.config.sites = V.config.sites.map((x) => (x.id === ns.id ? ns : x));
+      loadForecast();
+    };
   }
 
   async function setMode(replayDate) {
@@ -430,7 +461,7 @@
     const cell = (p) => `<td class="c-${p.band} ${p.time === fc.nowTime ? 'now' : ''}" title="WBGT ${p.wbgtEff}°C vs limit ${p.limit}°C${p.middayBan ? ' · midday ban' : ''}">${p.band === 'red' ? 'STOP' : p.workMin === 60 ? '60' : `${p.workMin}/${p.restMin}`}</td>`;
     el.innerHTML = `<h2>Work/rest planner</h2>
       <p class="small">${win ? `Best window for heavy work: <b>${win.start.slice(11)}–${pad2(Number(win.end.slice(11, 13)) + 1)}:00</b>.` : '<b>No safe window for heavy work today.</b> Reschedule or switch to light tasks.'}
-      ${s.middayBan ? 'From 15 Jun to 15 Sep, 12:00–14:59 slots also carry the UAE midday outdoor work ban.' : ''}</p>
+      ${ruleText(s.middayBan)}</p>
       <div class="planner"><table>
         <tr><th>Hour</th>${hours.map((h) => `<th class="${h.time === fc.nowTime ? 'now' : ''}">${h.time.slice(11, 13)}</th>`).join('')}</tr>
         <tr><td>Est. WBGT °C</td>${hours.map((h) => `<td>${(Heat.wbgt(h.t, h.rh, h.sw, h.wind) + (s.calib || 0)).toFixed(1)}</td>`).join('')}</tr>
@@ -438,6 +469,74 @@
         ${plans.map(([l, p]) => `<tr><td>${l}</td>${p.map(cell).join('')}</tr>`).join('')}
       </table></div>
       <p class="muted small">Cells show minutes of work/rest per hour from the NIOSH time-weighted limit (acclimatised crew in normal clothes unless the row says otherwise). STOP = stop this task, light work in shade only. Hover a cell for WBGT and the limit. The outlined column is now.</p>`;
+  }
+
+  const dm = (md) => new Date(`2025-${md}T00:00`).toLocaleString('en', { day: 'numeric', month: 'short' });
+  function ruleText(key) {
+    const r = Heat.RULES[key];
+    if (!r) return 'No legal midday ban is configured for this site.';
+    return `${esc(r.name)}: no outdoor work ${r.start}–${r.end}, ${dm(r.from)} to ${dm(r.to)}${r.wbgtStop ? `; work also stops whenever WBGT reaches ${r.wbgtStop} °C` : ''}. Check current rules with the labour ministry.`;
+  }
+
+  // ---------------- water and shade logistics ----------------
+  function drawLogiShell() {
+    const opt = (sel) => Array.from({ length: 15 }, (_, i) => i + 5).map((h) => `<option value="${h}" ${h === sel ? 'selected' : ''}>${pad2(h)}:00</option>`).join('');
+    $('#sv-logi').innerHTML = `<h2>Water and shade for today</h2>
+      <div class="row small"><label>Crew <input id="lgCrew" type="number" min="1" max="2000" value="20" class="btn sm" style="width:72px" /></label>
+        <label>From <select id="lgFrom" class="btn sm">${opt(6)}</select></label><label>to <select id="lgTo" class="btn sm">${opt(14)}</select></label></div>
+      <div id="logiOut" style="margin-top:10px"></div>
+      <p class="muted small">Moderate work, acclimatised crew. Water: about 0.9 L per worker per hour in Caution or worse (1 cup every 15–20 min, NIOSH), 0.5 L otherwise. Shade: everyone who must rest at the same time in the worst hour.</p>`;
+    ['lgCrew', 'lgFrom', 'lgTo'].forEach((id) => { $(`#${id}`).oninput = drawLogi; $(`#${id}`).onchange = drawLogi; });
+  }
+  function drawLogi() {
+    const el = $('#logiOut');
+    if (!el || !V.fc) return;
+    const s = site();
+    const crew = Math.max(1, Math.min(2000, Number($('#lgCrew').value) || 1));
+    const from = Number($('#lgFrom').value), to = Number($('#lgTo').value);
+    const hours = V.fc.hourly.filter((r) => { const h = Number(r.time.slice(11, 13)); return h >= from && h < to; });
+    if (!hours.length) { el.innerHTML = '<p class="muted small">Pick a shift of at least one hour.</p>'; return; }
+    const plan = Heat.assessDay(hours, { workload: 'moderate', clothing: 'standard', daysOnSite: 30, calib: s.calib || 0 }, s.middayBan);
+    const litres = Math.ceil(crew * plan.reduce((sum, p) => sum + (p.band === 'green' ? 0.5 : 0.9), 0));
+    const worst = plan.reduce((b, p) => (p.restMin > b.restMin ? p : b), plan[0]);
+    const stops = plan.filter((p) => p.band === 'red').length;
+    el.innerHTML = `<div class="kpis"><div><b>${litres} L</b>cool drinking water</div><div><b>${Math.ceil(litres / 19)}</b>19-litre water jugs</div>
+      <div><b>${Math.ceil((crew * worst.restMin) / 60)}</b>shade places at once (worst hour ${worst.time.slice(11, 16)})</div><div><b>${stops} h</b>where moderate work must stop</div></div>`;
+  }
+
+  // ---------------- morning toolbox-talk briefing ----------------
+  function tl(lang, key, vars) {
+    const L = I18N[lang] || I18N.en;
+    let s = L[key] ?? I18N.en[key] ?? key;
+    if (vars) for (const k in vars) s = s.replace(`{${k}}`, vars[k]);
+    return s;
+  }
+  function briefingLines(lang) {
+    const s = site();
+    if (!V.fc) return [];
+    const hours = V.fc.hourly.filter((r) => { const h = Number(r.time.slice(11, 13)); return h >= 5 && h <= 19; });
+    const heavy = Heat.assessDay(hours, { workload: 'heavy', clothing: 'standard', daysOnSite: 30, calib: s.calib || 0 }, s.middayBan);
+    const peak = heavy.reduce((b, p) => (p.wbgt > b.wbgt ? p : b), heavy[0]);
+    const win = Heat.bestWindow(heavy);
+    const stop = heavy.find((p) => p.band === 'red' && !p.middayBan) || heavy.find((p) => p.band === 'red');
+    const rule = Heat.RULES[s.middayBan];
+    return [
+      tl(lang, 'br_peak', { w: peak.wbgt, time: peak.time.slice(11, 16) }),
+      win ? tl(lang, 'br_window', { a: win.start.slice(11, 16), b: `${pad2(Number(win.end.slice(11, 13)) + 1)}:00` }) : tl(lang, 'br_nowindow'),
+      stop ? tl(lang, 'br_stop', { time: stop.time.slice(11, 16) }) : null,
+      rule && heavy.some((p) => p.middayBan) ? tl(lang, 'br_ban', { start: rule.start, end: rule.end }) : null,
+      tl(lang, 'br_water'), tl(lang, 'br_rest'), tl(lang, 'br_new'), tl(lang, 'br_buddy', { n: s.emergency }), tl(lang, 'br_app'),
+    ].filter(Boolean);
+  }
+  function openBriefing(lang = V.brLang || 'en') {
+    V.brLang = lang;
+    const langs = Object.entries(I18N.langs).map(([k, v]) => `<option value="${k}" ${k === lang ? 'selected' : ''}>${v}</option>`).join('');
+    modal('brief', `<div class="modal brief" dir="${I18N.rtl.includes(lang) ? 'rtl' : 'ltr'}">
+      <div class="row noprint" style="justify-content:space-between"><select id="brLang" class="btn sm" aria-label="Briefing language">${langs}</select>
+        <span class="row"><button class="btn sm" data-c="brSay">🔊 Read aloud</button><button class="btn sm" data-c="brPrint">🖨 Print</button><button class="btn sm" data-w="close">✕</button></span></div>
+      <h1>☀ ${tl(lang, 'br_title')}</h1><div class="muted small" dir="ltr">${esc(site().name)} · ${esc((V.fc ? V.fc.nowTime : '').slice(0, 10))}</div>
+      <ol class="brief-list">${briefingLines(lang).map((l) => `<li>${esc(l)}</li>`).join('')}</ol></div>`);
+    $('#brLang').onchange = (e) => openBriefing(e.target.value);
   }
 
   async function pollConsole() {
@@ -471,7 +570,9 @@
     const age = Math.max(0, Math.round((Date.now() - a.openedAt) / 1000));
     let actions = '';
     if (!done && role === 'supervisor' && a.stage !== 'medic') actions = `<button class="btn sm ok" data-act="ack" data-id="${a.id}">Checked: worker OK</button><button class="btn sm warn" data-act="escalate" data-id="${a.id}">Call first-aider</button>`;
-    if (!done && role === 'medic') actions = `<button class="btn sm" data-act="attend" data-id="${a.id}">Attending</button><button class="btn sm ok" data-act="resolve" data-id="${a.id}">Resolve</button>`;
+    if (!done && role === 'medic') actions = `<button class="btn sm" data-act="attend" data-id="${a.id}">Attending</button>
+      <select class="btn sm" data-outcome-for="${a.id}" aria-label="Case outcome">${Object.entries(OUTCOME_LABEL).map(([k, v]) => `<option value="${k}" ${(V.outcomes[a.id] || '') === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
+      <button class="btn sm ok" data-act="resolve" data-id="${a.id}">Close case</button>`;
     let clinical = '';
     if (role === 'medic') {
       if (a.symptoms && a.symptoms.length) clinical = `<div class="small">Symptoms: <b>${a.symptoms.map((s) => esc(I18N.en[`s_${s}`] || s)).join(', ')}</b></div>`;
@@ -488,6 +589,7 @@
   function drawAlerts(sel, role) {
     const el = $(sel);
     if (!el) return;
+    if (el.contains(document.activeElement) && document.activeElement.tagName === 'SELECT') return; // don't close an open picker
     const list = role === 'medic' ? V.alerts.filter((a) => a.stage === 'medic' || a.status === 'resolved') : V.alerts;
     el.innerHTML = `<h2>${role === 'medic' ? 'Cases for the first-aider' : 'Alerts'}</h2>${list.length ? list.map((a) => alertCard(a, role)).join('') : '<p class="muted small">No alerts.</p>'}`;
   }
@@ -500,7 +602,9 @@
     el.innerHTML = `<h2>Safety measures (this session)</h2>
       ${m ? `<div class="kpis"><div><b>${m.alertsOpened}</b>alerts</div><div><b>${k(m.checkinPromptResponseRate, '%')}</b>prompts answered by worker</div>
         <div><b>${k(m.medianResponseSec, 's')}</b>median time to a human response</div><div><b>${m.reachedFirstAider}</b>reached first-aider</div>
-        <div><b>${m.signalLost}</b>signal-lost alerts</div><div><b>${m.emergencies}</b>emergencies</div></div>` : ''}
+        <div><b>${m.signalLost}</b>signal-lost alerts</div><div><b>${m.emergencies}</b>emergencies</div>
+        <div><b>${k(m.restAdherence, '%')}</b>rest breaks taken (whole crew, never per worker)</div></div>
+        ${m.outcomes && Object.values(m.outcomes).some(Boolean) ? `<p class="small">Cases closed by the first-aider: ${Object.entries(m.outcomes).filter(([, n]) => n).map(([key, n]) => `${OUTCOME_LABEL[key]} <b>${n}</b>`).join(' · ')}</p>` : ''}` : ''}
       ${V.bt ? `<h2 style="margin-top:14px">Back-test: ${esc(V.bt.site)}, ${esc(V.bt.period)}</h2>
         <div class="kpis"><div><b>${V.bt.pod}%</b>danger hours warned (hit rate)</div><div><b>${V.bt.far}%</b>false-alarm ratio</div>
         <div><b>${V.bt.outsideBanPct}%</b>danger hours outside the midday ban</div><div><b>${V.bt.leadMedianH} h</b>median lead from the 06:00 briefing</div></div>
@@ -733,7 +837,11 @@
       if (c0 === 'calib') { const s = await api('/api/site/calibrate', { method: 'POST', body: { siteId: V.site, wbgt: $('#calWbgt').value } }); V.config.sites = V.config.sites.map((x) => (x.id === s.id ? s : x)); return loadForecast(); }
       if (w === 'sendSym') return checkin('unwell', [...overlay.querySelectorAll('.chip.on')].map((x) => x.dataset.sym));
       if (w === 'end') { await api('/api/shift/end', { method: 'POST' }).catch(() => {}); local.del('hm_plan'); W.view = null; W.me = null; return pollWorker(); }
-      if (b.dataset.act) { await api(`/api/alerts/${b.dataset.id}/${b.dataset.act}`, { method: 'POST', body: {} }); return pollConsole(); }
+      if (b.dataset.act) { await api(`/api/alerts/${b.dataset.id}/${b.dataset.act}`, { method: 'POST', body: { outcome: V.outcomes[b.dataset.id] || '' } }); return pollConsole(); }
+      if (w === 'rest') { try { const r = await api('/api/rest', { method: 'POST' }); if (W.me) W.me.rest = r; } catch {} return drawWorker(); }
+      if (c0 === 'brief') return openBriefing();
+      if (c0 === 'brSay') return say(briefingLines(V.brLang || 'en').join(' '), V.brLang || 'en');
+      if (c0 === 'brPrint') return window.print();
       if (b.dataset.silent) { await api(`/api/demo/silent/${b.dataset.silent}`, { method: 'POST' }); return pollConsole(); }
       if (b.dataset.deltask) { V.tasks.splice(Number(b.dataset.deltask), 1); local.set('hm_tasks', V.tasks); return drawSched(); }
       const c = b.dataset.c;

@@ -64,6 +64,18 @@ test('on-site sensor calibration shifts WBGT', () => {
   assert.ok(Math.abs(Heat.assess({ ...o, calib: 2 }).wbgt - Heat.assess(o).wbgt - 2) < 0.11);
 });
 
+test('country rule packs: ban windows and Qatar WBGT stop rule', () => {
+  assert.ok(Heat.inMiddayBan('2025-06-05T10:00', 'QAT'), 'Qatar starts 1 Jun at 10:00');
+  assert.ok(!Heat.inMiddayBan('2025-06-05T10:00', 'UAE'), 'UAE starts 15 Jun');
+  assert.ok(Heat.inMiddayBan('2025-07-10T15:00', 'KWT'), 'Kuwait runs to 16:00');
+  assert.ok(!Heat.inMiddayBan('2025-07-10T15:00', 'KSA'), 'Saudi ends at 15:00');
+  const cool = { t: 30, rh: 40, sw: 0, wind: 10, workload: 'light', clothing: 'standard', daysOnSite: 30, time: '2025-11-01T08:00' };
+  assert.strictEqual(Heat.assess({ ...cool, middayBan: 'QAT' }).band, 'green');
+  const humid = { ...cool, t: 36, rh: 70, sw: 700 };
+  const q = Heat.assess({ ...humid, middayBan: 'QAT' });
+  assert.ok(q.wbgt >= 32.1 && q.ruleStop && q.band === 'red', 'WBGT ≥ 32.1 °C stops work in Qatar');
+});
+
 test('advance warning finds the next rise', () => {
   const plan = ['green', 'green', 'yellow', 'red'].map((band, i) => ({ band, time: `2025-07-10T0${i + 6}:00` }));
   assert.deepStrictEqual(Heat.nextRise(plan, 0), { time: '2025-07-10T08:00', band: 'yellow', hoursAhead: 2 });

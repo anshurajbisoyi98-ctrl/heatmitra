@@ -37,6 +37,13 @@ Deploy: `Dockerfile` and `render.yaml` are included (single process, `PORT` env 
    - **Heart-rate sensor → Demo** simulates a rising heart rate. HeatMitra estimates core temperature and the strain index, and at a strain index of 7 it tells the worker to stop and alerts the supervisor. **Connect Bluetooth sensor** works with real chest straps in Chrome.
    - **Hydration check** is the urine-colour self-check.
 
+   - **Rest break now:** when the plan calls for rest, the worker gets a countdown and taps **I'm resting in the shade**.
+9. Back in the supervisor console:
+   - **Morning briefing** creates the 06:00 safety talk in four languages, to read aloud or print.
+   - **Water and shade** works out the litres of water and shade places the crew needs.
+   - The **rule selector** switches between Gulf country rules. Pick the **Lusail (Qatar)** site to see Qatar's 10:00–15:30 window and the 32.1 °C stop rule.
+10. **First-aider:** close each case with an outcome (cramps, exhaustion, suspected heat stroke…). Outcomes, and the crew's rest-break adherence, appear in the supervisor's safety measures.
+
 The research behind these features is in `docs/RESEARCH.md`.
 
 ## Layout

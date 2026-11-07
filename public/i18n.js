@@ -12,7 +12,7 @@ window.I18N = {
     b_green: 'SAFE', b_yellow: 'CAUTION', b_orange: 'TAKE BREAKS', b_red: 'STOP',
     a_green: 'Normal work. Drink water regularly.', a_yellow: 'Work with a buddy. Drink 1 cup of water every 15–20 minutes.',
     a_orange: 'Follow the work/rest plan. Rest in shade. 1 cup of water every 15 minutes.', a_red: 'Stop this task now. Move to shade or a cool room. Only light work.',
-    ban: 'Midday break (12:30–15:00): no outdoor work.', plan: 'This hour', work: 'Work', rest: 'Rest in shade', min: 'min',
+    ban: 'Midday break ({start}–{end}): no outdoor work.', plan: 'This hour', work: 'Work', rest: 'Rest in shade', min: 'min',
     rise: 'From {time} risk rises to {band}. Finish heavy work before then.', acclim: 'You are new to this heat (day {d}). Keep heat exposure to {p}% of your shift.',
     next: 'Next check-in in', ok: "I'm OK", unwell: 'I feel unwell', areyouok: 'Are you OK?',
     tapok: 'Tap the button. If you do not answer, your supervisor will come to check.', symTitle: 'What do you feel?', send: 'Send', cancel: 'Cancel',
@@ -32,7 +32,7 @@ window.I18N = {
     b_green: 'सुरक्षित', b_yellow: 'सावधान', b_orange: 'ब्रेक लें', b_red: 'रुकें',
     a_green: 'सामान्य काम। नियमित पानी पिएँ।', a_yellow: 'साथी के साथ काम करें। हर 15–20 मिनट में 1 कप पानी पिएँ।',
     a_orange: 'काम/आराम योजना मानें। छाँव में आराम करें। हर 15 मिनट 1 कप पानी।', a_red: 'यह काम अभी रोकें। छाँव या ठंडे कमरे में जाएँ। सिर्फ़ हल्का काम।',
-    ban: 'दोपहर का ब्रेक (12:30–15:00): बाहर काम नहीं।', plan: 'इस घंटे', work: 'काम', rest: 'छाँव में आराम', min: 'मिनट',
+    ban: 'दोपहर का ब्रेक ({start}–{end}): बाहर काम नहीं।', plan: 'इस घंटे', work: 'काम', rest: 'छाँव में आराम', min: 'मिनट',
     rise: '{time} से जोखिम बढ़कर {band} होगा। भारी काम उससे पहले खत्म करें।', acclim: 'आप इस गर्मी में नए हैं (दिन {d})। गर्मी में काम शिफ्ट का {p}% ही रखें।',
     next: 'अगला चेक-इन', ok: 'मैं ठीक हूँ', unwell: 'मेरी तबीयत ठीक नहीं', areyouok: 'क्या आप ठीक हैं?',
     tapok: 'बटन दबाएँ। जवाब न देने पर आपका सुपरवाइज़र देखने आएगा।', symTitle: 'आपको क्या महसूस हो रहा है?', send: 'भेजें', cancel: 'रद्द करें',
@@ -52,7 +52,7 @@ window.I18N = {
     b_green: 'آمن', b_yellow: 'انتباه', b_orange: 'خذ فترات راحة', b_red: 'توقف',
     a_green: 'عمل عادي. اشرب الماء بانتظام.', a_yellow: 'اعمل مع زميل. اشرب كوبًا من الماء كل 15–20 دقيقة.',
     a_orange: 'اتبع خطة العمل والراحة. استرح في الظل. كوب ماء كل 15 دقيقة.', a_red: 'أوقف هذه المهمة الآن. انتقل إلى الظل أو غرفة باردة. عمل خفيف فقط.',
-    ban: 'استراحة الظهيرة (12:30–15:00): لا عمل في الخارج.', plan: 'هذه الساعة', work: 'عمل', rest: 'راحة في الظل', min: 'دقيقة',
+    ban: 'استراحة الظهيرة ({start}–{end}): لا عمل في الخارج.', plan: 'هذه الساعة', work: 'عمل', rest: 'راحة في الظل', min: 'دقيقة',
     rise: 'من الساعة {time} يرتفع الخطر إلى {band}. أنهِ العمل الثقيل قبل ذلك.', acclim: 'أنت جديد على هذا الحر (اليوم {d}). اجعل التعرض للحر {p}% من نوبتك فقط.',
     next: 'التسجيل التالي بعد', ok: 'أنا بخير', unwell: 'أشعر بتعب', areyouok: 'هل أنت بخير؟',
     tapok: 'اضغط الزر. إذا لم تجب، سيأتي مشرفك للاطمئنان عليك.', symTitle: 'بماذا تشعر؟', send: 'إرسال', cancel: 'إلغاء',
@@ -72,7 +72,7 @@ window.I18N = {
     b_green: 'محفوظ', b_yellow: 'احتیاط', b_orange: 'وقفے لیں', b_red: 'رکیں',
     a_green: 'معمول کا کام۔ باقاعدگی سے پانی پیئیں۔', a_yellow: 'ساتھی کے ساتھ کام کریں۔ ہر 15–20 منٹ میں 1 کپ پانی پیئیں۔',
     a_orange: 'کام/آرام کا منصوبہ مانیں۔ سائے میں آرام کریں۔ ہر 15 منٹ 1 کپ پانی۔', a_red: 'یہ کام ابھی روکیں۔ سائے یا ٹھنڈے کمرے میں جائیں۔ صرف ہلکا کام۔',
-    ban: 'دوپہر کا وقفہ (12:30–15:00): باہر کام نہیں۔', plan: 'اس گھنٹے', work: 'کام', rest: 'سائے میں آرام', min: 'منٹ',
+    ban: 'دوپہر کا وقفہ ({start}–{end}): باہر کام نہیں۔', plan: 'اس گھنٹے', work: 'کام', rest: 'سائے میں آرام', min: 'منٹ',
     rise: '{time} سے خطرہ بڑھ کر {band} ہوگا۔ بھاری کام اس سے پہلے ختم کریں۔', acclim: 'آپ اس گرمی میں نئے ہیں (دن {d})۔ گرمی میں کام شفٹ کا صرف {p}% رکھیں۔',
     next: 'اگلا چیک اِن', ok: 'میں ٹھیک ہوں', unwell: 'میری طبیعت ٹھیک نہیں', areyouok: 'کیا آپ ٹھیک ہیں؟',
     tapok: 'بٹن دبائیں۔ جواب نہ دینے پر آپ کا سپروائزر دیکھنے آئے گا۔', symTitle: 'آپ کو کیا محسوس ہو رہا ہے؟', send: 'بھیجیں', cancel: 'منسوخ',
@@ -113,4 +113,42 @@ Object.assign(I18N.ur, {
   hydNote: 'یہ صرف آپ کے فون پر رہتا ہے۔ کسی کو نہیں بھیجا جاتا۔', wearTitle: 'دل کی دھڑکن کا سینسر (اختیاری)', wearConnect: 'بلوٹوتھ سینسر جوڑیں', wearDemo: 'ڈیمو',
   strain: 'گرمی کا دباؤ', psi_low: 'کم', psi_moderate: 'درمیانہ', psi_high: 'زیادہ: رکیں اور جسم ٹھنڈا کریں', psi_veryhigh: 'بہت زیادہ: ابھی مدد لیں',
   coreTemp: 'اندازاً جسم کا درجہ حرارت', wearNote: 'دل کی دھڑکن آپ کے فون پر ہی رہتی ہے۔ صرف زیادہ دباؤ کا الرٹ بھیجا جاتا ہے۔',
+});
+
+// Rest-break cycle, country WBGT stop rule, and the supervisor's morning briefing.
+Object.assign(I18N.en, {
+  restNow: 'Rest break now', restBtn: "I'm resting in the shade", resting: 'Resting ✓', nextRest: 'Next rest break in',
+  ruleStop: 'WBGT is {w} °C, above the legal limit of {lim} °C: outdoor work must stop.',
+  br_title: 'Heat safety briefing', br_peak: "Today's peak heat: {w} °C WBGT at {time}.", br_window: 'Heavy work: do it between {a} and {b}.',
+  br_nowindow: 'There is no safe time for heavy work today. Only light tasks in the hot hours.', br_stop: 'Heavy work stops from {time}.',
+  br_ban: 'No outdoor work from {start} to {end} (midday break).', br_water: 'Drink 1 cup of water every 15–20 minutes, even if you are not thirsty.',
+  br_rest: 'Take every rest break in the shade. Your phone will tell you when.', br_new: 'New workers in their first week: less time in the heat. Tell your supervisor.',
+  br_buddy: 'Watch your buddy. Confusion, fainting or hot dry skin is an emergency: call {n}.', br_app: "Answer 'Are you OK?' on your phone. Say you feel unwell early, not late.",
+});
+Object.assign(I18N.hi, {
+  restNow: 'अभी आराम का ब्रेक', restBtn: 'मैं छाँव में आराम कर रहा/रही हूँ', resting: 'आराम कर रहे हैं ✓', nextRest: 'अगला आराम ब्रेक',
+  ruleStop: 'WBGT {w} °C है, कानूनी सीमा {lim} °C से ज़्यादा: बाहर का काम रोकना होगा।',
+  br_title: 'गर्मी से सुरक्षा ब्रीफ़िंग', br_peak: 'आज सबसे ज़्यादा गर्मी: {time} बजे {w} °C WBGT।', br_window: 'भारी काम: {a} से {b} के बीच करें।',
+  br_nowindow: 'आज भारी काम के लिए कोई सुरक्षित समय नहीं है। गर्म घंटों में सिर्फ़ हल्का काम।', br_stop: '{time} से भारी काम बंद।',
+  br_ban: '{start} से {end} तक बाहर कोई काम नहीं (दोपहर का ब्रेक)।', br_water: 'हर 15–20 मिनट में 1 कप पानी पिएँ, प्यास न लगे तब भी।',
+  br_rest: 'हर आराम का ब्रेक छाँव में लें। आपका फ़ोन बताएगा कब।', br_new: 'पहले हफ़्ते वाले नए कर्मचारी: गर्मी में कम समय। अपने सुपरवाइज़र को बताएँ।',
+  br_buddy: 'अपने साथी का ध्यान रखें। उलझन, बेहोशी या गर्म सूखी त्वचा आपातकाल है: {n} पर कॉल करें।', br_app: "फ़ोन पर 'क्या आप ठीक हैं?' का जवाब दें। तबीयत खराब लगे तो जल्दी बताएँ, देर से नहीं।",
+});
+Object.assign(I18N.ar, {
+  restNow: 'استراحة الآن', restBtn: 'أنا أستريح في الظل', resting: 'في استراحة ✓', nextRest: 'الاستراحة التالية بعد',
+  ruleStop: 'مؤشر WBGT ‏{w} °م، فوق الحد القانوني {lim} °م: يجب إيقاف العمل في الخارج.',
+  br_title: 'إحاطة السلامة من الحرارة', br_peak: 'ذروة الحرارة اليوم: {w} °م WBGT عند الساعة {time}.', br_window: 'العمل الثقيل: بين الساعة {a} والساعة {b}.',
+  br_nowindow: 'لا يوجد وقت آمن للعمل الثقيل اليوم. أعمال خفيفة فقط في الساعات الحارة.', br_stop: 'يتوقف العمل الثقيل من الساعة {time}.',
+  br_ban: 'لا عمل في الخارج من {start} إلى {end} (استراحة الظهيرة).', br_water: 'اشرب كوب ماء كل 15–20 دقيقة حتى لو لم تشعر بالعطش.',
+  br_rest: 'خذ كل فترة راحة في الظل. سينبهك هاتفك.', br_new: 'العمال الجدد في أسبوعهم الأول: وقت أقل في الحر. أخبر مشرفك.',
+  br_buddy: 'راقب زميلك. الارتباك أو الإغماء أو الجلد الحار الجاف حالة طارئة: اتصل بـ {n}.', br_app: "أجب على سؤال 'هل أنت بخير؟' في هاتفك. أخبرنا بتعبك مبكرًا لا متأخرًا.",
+});
+Object.assign(I18N.ur, {
+  restNow: 'ابھی آرام کا وقفہ', restBtn: 'میں سائے میں آرام کر رہا/رہی ہوں', resting: 'آرام کر رہے ہیں ✓', nextRest: 'اگلا آرام کا وقفہ',
+  ruleStop: 'WBGT ‏{w} °C ہے، قانونی حد {lim} °C سے زیادہ: باہر کا کام روکنا ہوگا۔',
+  br_title: 'گرمی سے حفاظت کی بریفنگ', br_peak: 'آج سب سے زیادہ گرمی: {time} بجے {w} °C WBGT۔', br_window: 'بھاری کام: {a} سے {b} کے درمیان کریں۔',
+  br_nowindow: 'آج بھاری کام کے لیے کوئی محفوظ وقت نہیں۔ گرم گھنٹوں میں صرف ہلکا کام۔', br_stop: '{time} سے بھاری کام بند۔',
+  br_ban: '{start} سے {end} تک باہر کوئی کام نہیں (دوپہر کا وقفہ)۔', br_water: 'ہر 15–20 منٹ میں 1 کپ پانی پیئیں، پیاس نہ لگے تب بھی۔',
+  br_rest: 'ہر آرام کا وقفہ سائے میں لیں۔ آپ کا فون بتائے گا کب۔', br_new: 'پہلے ہفتے والے نئے کارکن: گرمی میں کم وقت۔ اپنے سپروائزر کو بتائیں۔',
+  br_buddy: 'اپنے ساتھی کا خیال رکھیں۔ الجھن، بے ہوشی یا گرم خشک جلد ایمرجنسی ہے: {n} پر کال کریں۔', br_app: "فون پر 'کیا آپ ٹھیک ہیں؟' کا جواب دیں۔ طبیعت خراب لگے تو جلدی بتائیں، دیر سے نہیں۔",
 });

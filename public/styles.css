@@ -109,4 +109,15 @@ table.list td, table.list th { padding: 7px 6px; border-bottom: 1px solid var(--
 .urine { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0; }
 .swatch { height: 56px; border-radius: 12px; border: 2px solid var(--line); font-weight: 700; color: #3b2a00; cursor: pointer; }
 .swatch:hover { border-color: var(--ink); }
+.rest-now { background: #e8f1ff; border-color: #9cc1ff; }
+.modal.brief { max-width: 640px; }
+.brief-list { font-size: 18px; line-height: 1.5; padding-inline-start: 22px; }
+.brief-list li { margin-bottom: 8px; }
+@media print {
+  body * { visibility: hidden; }
+  #overlay, #overlay * { visibility: visible; }
+  #overlay { position: absolute; inset: 0; background: #fff; display: block; }
+  .noprint { display: none !important; }
+  .modal.brief { max-width: none; box-shadow: none; }
+}
 @media (max-width: 560px) { .brand small { display: none; } .counts b { font-size: 20px; } }

@@ -33,6 +33,20 @@ const consent = new Map(); // workerId -> { symptoms: bool }
 const alerts = [];
 const checkins = [];
 const audit = [];
+const restTotals = { due: 0, taken: 0 }; // from shifts that have ended
+const OUTCOMES = { cramps: 'heat cramps', exhaustion: 'heat exhaustion', stroke: 'suspected heat stroke', notheat: 'not heat-related', falsealarm: 'false alarm, worker fine' };
+
+// Work/rest cycle for this hour: work first, then rest, repeating every (scaled) hour.
+function restInfo(sh) {
+  const cyc = 60 * T.checkinScale * 1000;
+  const el = now() - sh.startedAt;
+  const ci = Math.floor(el / cyc);
+  const cycleStart = sh.startedAt + ci * cyc;
+  if (sh.workMin >= 60) return { phase: 'work', endsAt: null };
+  const restAt = cycleStart + sh.workMin * T.checkinScale * 1000;
+  if (now() < restAt) return { phase: 'work', endsAt: restAt };
+  return { phase: 'rest', endsAt: cycleStart + cyc, acked: sh.restAckCycle === ci, full: sh.workMin === 0 };
+}
 
 const now = () => Date.now();
 const id = () => crypto.randomBytes(6).toString('hex');
@@ -75,6 +89,7 @@ async function workerView(sh) {
   const current = plan[sn.idx];
   sh.band = current.band;
   sh.checkinMin = current.checkinMin;
+  sh.workMin = current.workMin;
   return { site, sn, plan, current, rise: Heat.nextRise(plan, sn.idx) };
 }
 
@@ -143,6 +158,14 @@ async function sweep() {
       continue;
     }
     try { await workerView(sh); } catch { continue; }
+    // Count each rest break the plan calls for; simulated workers take most of them.
+    const cyc = 60 * T.checkinScale * 1000;
+    const ci = Math.floor((t - sh.startedAt) / cyc);
+    if (sh.workMin < 60 && (t - sh.startedAt) % cyc >= sh.workMin * T.checkinScale * 1000 && sh.restDueCycle !== ci) {
+      sh.restDueCycle = ci;
+      sh.restsDue++;
+      if (sh.simulated && !sh.silent && Math.random() < 0.85) { sh.restAckCycle = ci; sh.restsTaken++; }
+    }
     if (!sh.checkinMin) continue;
     const due = sh.lastCheckin + sh.checkinMin * T.checkinScale * 1000;
     if (t < due) continue;
@@ -168,6 +191,7 @@ function startShift(w, body = {}, simulated = false) {
     clothing: Heat.CLOTHING[body.clothing] != null ? body.clothing : w.clothing,
     daysOnSite: Number.isFinite(Number(body.daysOnSite)) ? Math.max(0, Number(body.daysOnSite)) : w.daysOnSite,
     startedAt: now(), lastHeartbeat: now(), lastCheckin: now(), simulated, silent: false, band: null, checkinMin: null,
+    workMin: 60, restsDue: 0, restsTaken: 0, restDueCycle: -1, restAckCycle: -1,
   };
   shifts.set(w.id, sh);
   log(simulated ? 'demo' : w.name, 'shift_started', `${w.name} ${sh.workload}`);
@@ -201,6 +225,13 @@ function metrics() {
     checkinPromptResponseRate: prompted.length ? Math.round((answered.length / prompted.length) * 100) : null,
     medianResponseSec: resp.length ? Math.round(resp[Math.floor(resp.length / 2)]) : null,
     checkins: checkins.length,
+    restAdherence: (() => {
+      const live = [...shifts.values()];
+      const due = restTotals.due + live.reduce((s, x) => s + x.restsDue, 0);
+      const taken = restTotals.taken + live.reduce((s, x) => s + x.restsTaken, 0);
+      return due ? Math.round((taken / due) * 100) : null;
+    })(),
+    outcomes: Object.fromEntries(Object.keys(OUTCOMES).map((k) => [k, alerts.filter((a) => a.outcome === k).length])),
   };
 }
 
@@ -293,12 +324,15 @@ async function api(req, res, url) {
       current: v.current, rise: v.rise, plan: v.plan,
       nextCheckinAt: v.current.checkinMin ? sh.lastCheckin + v.current.checkinMin * T.checkinScale * 1000 : null,
       alert: a ? { id: a.id, stage: a.stage, reason: a.reason, severity: a.severity } : null,
+      rest: restInfo(sh),
       serverTime: now(),
     });
   }
   if (p === '/api/shift/start' && m === 'POST') { need(u, 'worker'); startShift(u, await body(req)); return send(res, 200, { ok: true }); }
   if (p === '/api/shift/end' && m === 'POST') {
     need(u, 'worker');
+    const ended = shifts.get(u.id);
+    if (ended) { restTotals.due += ended.restsDue; restTotals.taken += ended.restsTaken; }
     shifts.delete(u.id);
     const a = openAlertFor(u.id);
     if (a && a.stage !== 'medic') resolve(a, u.name, 'shift ended');
@@ -317,6 +351,20 @@ async function api(req, res, url) {
     if (!sh) return send(res, 409, { error: 'no active shift' });
     const b = await body(req);
     return send(res, 200, recordCheckin(sh, b.status === 'unwell' ? 'unwell' : 'ok', b.symptoms, u.name));
+  }
+  // Worker confirms they are taking the rest break the plan calls for.
+  if (p === '/api/rest' && m === 'POST') {
+    need(u, 'worker');
+    const sh = shifts.get(u.id);
+    if (!sh) return send(res, 409, { error: 'no active shift' });
+    const ci = Math.floor((now() - sh.startedAt) / (60 * T.checkinScale * 1000));
+    if (restInfo(sh).phase === 'rest' && sh.restAckCycle !== ci) {
+      if (sh.restDueCycle !== ci) { sh.restDueCycle = ci; sh.restsDue++; }
+      sh.restAckCycle = ci;
+      sh.restsTaken++;
+    }
+    sh.lastHeartbeat = now();
+    return send(res, 200, restInfo(sh));
   }
   // Wearable strain: the phone computes PSI from heart rate and only reports it when it is high.
   if (p === '/api/strain' && m === 'POST') {
@@ -377,7 +425,11 @@ async function api(req, res, url) {
     if (act === 'ack') resolve(a, u.name, 'supervisor checked on worker: OK');
     if (act === 'escalate') advance(a, 'medic', u.name, 'supervisor requested first-aider');
     if (act === 'attend') { a.history.push({ stage: 'medic', at: now(), by: u.name, note: 'first-aider attending' }); log(u.name, 'alert_attending', a.id); }
-    if (act === 'resolve') resolve(a, u.name, (await body(req)).note || 'first-aider closed the case');
+    if (act === 'resolve') {
+      const b2 = await body(req);
+      a.outcome = OUTCOMES[b2.outcome] ? b2.outcome : null;
+      resolve(a, u.name, a.outcome ? `first-aider closed: ${OUTCOMES[a.outcome]}` : 'first-aider closed the case');
+    }
     return send(res, 200, alertPublic(a, u.role === 'medic'));
   }
   if (p === '/api/audit' && m === 'GET') { need(u, 'supervisor', 'medic'); return send(res, 200, audit.slice(-60).reverse()); }
@@ -396,6 +448,15 @@ async function api(req, res, url) {
     const model = Heat.wbgt(r.t, r.rh, r.sw, r.wind);
     site.calib = Math.max(-6, Math.min(6, Math.round((meas - model) * 10) / 10));
     log(u.name, 'site_calibrated', `${site.id}: sensor ${meas} °C vs model ${model.toFixed(1)} °C -> offset ${site.calib}`);
+    return send(res, 200, site);
+  }
+  if (p === '/api/site/rule' && m === 'POST') {
+    need(u, 'supervisor');
+    const b = await body(req);
+    const site = sites[b.siteId];
+    if (!site) return send(res, 404, { error: 'no such site' });
+    site.middayBan = Heat.RULES[b.rule] ? b.rule : false;
+    log(u.name, 'site_rules', `${site.id} -> ${site.middayBan ? Heat.RULES[site.middayBan].name : 'no midday ban'}`);
     return send(res, 200, site);
   }
   if (p === '/api/site/mode' && m === 'POST') {

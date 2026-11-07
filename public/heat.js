@@ -63,12 +63,26 @@
     return Math.max(0, Math.min(1, (mMax - M_REST) / (mWork - M_REST)));
   }
 
-  // time: 'YYYY-MM-DDTHH:MM' in site-local time. UAE midday outdoor work ban:
-  // 15 Jun to 15 Sep, 12:30 to 15:00. An hour slot that overlaps the window is flagged.
-  function inMiddayBan(time) {
+  // Country rule packs (summer midday outdoor-work bans, plus Qatar's WBGT stop rule).
+  // From GCC law-firm guides, June 2026; sources differ on some hours, so verify with each ministry.
+  const RULES = {
+    UAE: { name: 'UAE midday break', from: '06-15', to: '09-15', start: '12:30', end: '15:00' },
+    KSA: { name: 'Saudi Arabia midday break', from: '06-15', to: '09-15', start: '12:00', end: '15:00' },
+    QAT: { name: 'Qatar summer hours + WBGT 32.1 °C stop', from: '06-01', to: '09-15', start: '10:00', end: '15:30', wbgtStop: 32.1 },
+    KWT: { name: 'Kuwait midday break', from: '06-01', to: '08-31', start: '11:00', end: '16:00' },
+    OMN: { name: 'Oman midday break', from: '06-01', to: '08-31', start: '12:30', end: '15:30' },
+    BHR: { name: 'Bahrain midday break', from: '06-15', to: '09-15', start: '12:00', end: '16:00' },
+  };
+  const toMin = (hhmm) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
+  const resolveRule = (r) => (r === true ? RULES.UAE : typeof r === 'string' ? RULES[r] || null : r || null);
+
+  // time: 'YYYY-MM-DDTHH:MM' in site-local time. An hour slot that overlaps the ban window is flagged.
+  function inMiddayBan(time, rule = RULES.UAE) {
+    const r = resolveRule(rule);
+    if (!r) return false;
     const md = time.slice(5, 10);
     const h = Number(time.slice(11, 13));
-    return md >= '06-15' && md <= '09-15' && h >= 12 && h <= 14;
+    return md >= r.from && md <= r.to && h * 60 < toMin(r.end) && (h + 1) * 60 > toMin(r.start);
   }
 
   function assess(o) {
@@ -80,8 +94,10 @@
     const margin = eff - lim;
     const f = workFraction(eff, m, acclimatised);
     let band = margin <= -2 ? 'green' : margin <= 0 ? 'yellow' : f >= 0.25 ? 'orange' : 'red';
-    const ban = Boolean(o.middayBan && o.time && inMiddayBan(o.time));
-    if (ban) band = 'red';
+    const rule = resolveRule(o.middayBan);
+    const ban = Boolean(rule && o.time && inMiddayBan(o.time, rule));
+    const ruleStop = Boolean(rule && rule.wbgtStop && base >= rule.wbgtStop);
+    if (ban || ruleStop) band = 'red';
     let workMin = band === 'orange' ? Math.floor((f * 60) / 5) * 5 : band === 'red' ? 0 : 60;
     const days = o.daysOnSite || 0;
     const exposureCap = acclimatised ? 100 : Math.min(100, 20 * Math.max(1, days));
@@ -100,6 +116,10 @@
       checkinMin: CHECKIN_MIN[band],
       water: band !== 'green',
       middayBan: ban,
+      banStart: rule ? rule.start : null,
+      banEnd: rule ? rule.end : null,
+      ruleStop,
+      ruleLimit: rule && rule.wbgtStop ? rule.wbgtStop : null,
       acclimatised,
       exposureCap,
       basis: acclimatised ? 'NIOSH REL (acclimatised)' : 'NIOSH RAL (not yet acclimatised)',
@@ -159,7 +179,7 @@
   const psiBand = (p) => (p < 5 ? 'low' : p < 7 ? 'moderate' : p < 9 ? 'high' : 'veryhigh');
 
   return {
-    coreTempStep, psi, psiBand,
+    coreTempStep, psi, psiBand, RULES,
     WORKLOAD, CLOTHING, BANDS, CHECKIN_MIN, RED_FLAGS, SYMPTOMS, ACCLIMATISED_DAYS,
     wetBulb, wbgt, limit, workFraction, inMiddayBan, assess, assessDay, nextRise, bestWindow,
   };

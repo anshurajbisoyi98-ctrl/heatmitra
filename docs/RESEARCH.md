@@ -46,17 +46,28 @@ A short, time-boxed literature scan, done on the challenge day. Google Scholar b
   - The offset between the reading and the model (capped at ±6 °C) is applied to every plan, schedule and worker screen at that site.
   - The calibration is recorded in the audit log.
 
+### 5. Gulf country rule packs (built)
+- **What:** midday bans for the UAE (15 Jun–15 Sep, 12:30–15:00), Saudi Arabia (15 Jun–15 Sep, 12:00–15:00), Qatar (from 1 Jun, 10:00–15:30, plus a stop-work rule at WBGT 32.1 °C), Kuwait (1 Jun–31 Aug, 11:00–16:00), Oman (1 Jun–31 Aug, 12:30–15:30) and Bahrain (15 Jun–15 Sep, 12:00–16:00).
+- **Caveat:** sources disagree on some hours (Kuwait, Bahrain), and the search results did not capture Qatar's daily hours, which come from its 2021 resolution. Each rule pack is labelled "check with the labour ministry".
+- **In HeatMitra:** `Heat.RULES` in `public/heat.js`, chosen per site.
+
+### 6. Rest-break adherence (built)
+- **What:** the challenge asks teams to report "adherence to recommended controls". The worker app runs the NIOSH work/rest cycle and the worker confirms each rest break. The supervisor sees adherence for the whole crew only, never per worker, because individual figures could be used for discipline.
+
 ## Found, not built yet (roadmap)
 
 - **Thermal Work Limit (TWL):**
   - Brake & Bates; tested on UAE construction sites, where one study found it more useful than WBGT for well-hydrated, self-paced workers.
   - It needs a heat-balance model and would be a second index alongside WBGT.
-- **Country rules as configuration:**
-  - Qatar (2021) stops outdoor work when WBGT exceeds 32.1 °C, in addition to the midday ban.
-  - HeatMitra already handles the UAE ban, and rules like this could be added per site.
 - **Perceived exertion:** adding a quick "how hard does it feel?" check-in, as the newer critiques of PSI suggest.
 
 ## Sources
+
+- Clyde & Co, GCC midday work ban comparative guide (June 2026): https://www.clydeco.com/en/insights/2026/06/understanding-the-gcc-midday-work-ban
+- Morgan Lewis, the GCC midday sun rule (June 2026): https://www.morganlewis.com/blogs/shiftingsandsoflaborlaw/2026/06/the-gcc-midday-sun-rule-what-employers-need-to-know-across-the-gulf
+- UAE midday break announcement (Gulf Business, 2023): https://gulfbusiness.com/en/2023/jobs/uae-announces-midday-break-for-outdoor-workers
+- Saudi midday ban (Gulf News): https://gulfnews.com/world/gulf/saudi/outdoor-midday-work-ban-starts-in-saudi-arabia-1.2044190
+- Bahrain midday ban (Daily Tribune): https://www.newsofbahrain.com/bahrain/91258.html
 
 - Buller et al. 2013, Physiol Meas: https://opact.sdu.edu.tr/vufind/SummonRecord/FETCH-LOGICAL-c408t-ecf24f7ab79f92c4f85b246c328fd25f8e2c140b2368a5a6524a0bd93f3314cc2
 - Biphasic Kalman filter follow-up, Frontiers in Public Health 2024: https://www.frontiersin.org/journals/public-health/articles/10.3389/fpubh.2024.1219595/full
