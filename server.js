@@ -57,7 +57,8 @@ async function siteNow(site) {
   const lp = localParts(site.tz);
   const date = site.replayDate || lp.date;
   const time = `${date}T${pad(lp.hour)}:00`;
-  const day = fc.hourly.filter((r) => r.time.startsWith(date));
+  let day = fc.hourly.filter((r) => r.time.startsWith(date));
+  if (!day.length) day = fc.hourly.filter((r) => r.time.startsWith(fc.date)); // saved fallback day
   let idx = day.findIndex((r) => r.time === time);
   if (idx < 0) idx = Math.min(lp.hour, day.length - 1);
   return { fc, day, idx, time: day[idx].time, minute: lp.minute };

@@ -10,6 +10,7 @@ const fs = require('fs');
 const path = require('path');
 
 const CACHE_DIR = path.join(__dirname, '..', 'data', 'cache');
+const FALLBACK_DIR = path.join(__dirname, '..', 'data', 'fallback');
 const HOURLY = 'temperature_2m,relative_humidity_2m,shortwave_radiation,wind_speed_10m';
 const LIVE_TTL = 30 * 60 * 1000;
 const cache = new Map();
@@ -38,7 +39,11 @@ async function fetchSite(site, replayDate) {
     q.set('start_date', replayDate);
     q.set('end_date', replayDate);
   } else q.set('forecast_days', '2');
-  const r = await fetch(`${base}?${q}`, { signal: AbortSignal.timeout(8000) });
+  let r = await fetch(`${base}?${q}`, { signal: AbortSignal.timeout(8000) });
+  if (r.status === 429) { // shared hosting IPs get rate-limited; one polite retry
+    await new Promise((ok) => setTimeout(ok, 1500));
+    r = await fetch(`${base}?${q}`, { signal: AbortSignal.timeout(8000) });
+  }
   if (!r.ok) throw new Error(`Open-Meteo HTTP ${r.status}`);
   const rows = toRows(await r.json());
   if (!rows.length) throw new Error('Open-Meteo returned no rows');
@@ -71,6 +76,12 @@ async function forecast(site, replayDate) {
         const old = { ...JSON.parse(fs.readFileSync(file, 'utf8')), stale: true };
         cache.set(key, old);
         return old;
+      }
+      // Last resort: a real ERA5 day for this site that ships with the app, clearly labelled.
+      const bundled = path.join(FALLBACK_DIR, `${site.id}.json`);
+      if (fs.existsSync(bundled)) {
+        const fb = JSON.parse(fs.readFileSync(bundled, 'utf8'));
+        return { ...fb, stale: true, source: `Saved ERA5 day ${fb.date} (weather service unavailable: ${err.message})` };
       }
       throw err;
     })
