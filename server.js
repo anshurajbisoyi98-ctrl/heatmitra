@@ -183,7 +183,10 @@ let noticesSent = 0;
 function notify(workerId, body, tag, urgent = false) {
   const w = users[workerId];
   if (!w || w.channel === 'sms') return; // basic phones get their own SMS flow
-  latestNotice.set(workerId, { title: 'HeatMitra', body, tag, urgent, at: now() });
+  // Check-ins carry an "I'm OK" button, so a worker can answer from the lock screen.
+  latestNotice.set(workerId, { title: 'HeatMitra', body, tag, urgent, at: now(), ok: tag === 'checkin' ? tr(w.lang, 'ok') : undefined });
+  const sh = shifts.get(workerId);
+  if (sh && sh.visibleAt && now() - sh.visibleAt < 15000) return; // the app is on screen and shows this itself
   const subs = pushSubs.get(workerId) || [];
   if (subs.length) {
     noticesSent++;
@@ -241,7 +244,7 @@ function openAlert(sh, reason, stage, extra = {}) {
     openedAt: now(), stageAt: now(), firstHumanAt: null, history: [{ stage, at: now(), by: 'system', note: reason }],
   };
   alerts.push(a);
-  if (reason === 'checkin_due') {
+  if (reason === 'checkin_due' || (reason === 'no_signal' && stage === 'worker')) {
     const LW = users[sh.workerId].lang;
     notify(sh.workerId, `${tr(LW, 'areyouok')} ${tr(LW, 'tapok')}`, 'checkin', true);
   }
@@ -312,8 +315,12 @@ async function sweep() {
     const isSms = users[sh.workerId].channel === 'sms';
     if ((sh.simulated && !sh.silent) || isSms) sh.lastHeartbeat = t; // basic phones have no app heartbeat
     let open = openAlertFor(sh.workerId);
-    if (!open && t - sh.lastHeartbeat > T.heartbeatTimeout * 1000) {
-      openAlert(sh, 'no_signal', buddyFor(sh) ? 'buddy' : 'supervisor');
+    // A locked phone stops the app's heartbeat. If push alerts reach that phone and the app said it was
+    // put away (or the worker answered a push), the pushed check-ins keep watching. Otherwise ask the
+    // worker by push first, and go straight to the buddy only when the phone has no push.
+    const reachable = (pushSubs.get(sh.workerId) || []).length > 0;
+    if (!open && t - sh.lastHeartbeat > T.heartbeatTimeout * 1000 && !(reachable && sh.inPocket)) {
+      openAlert(sh, 'no_signal', reachable ? 'worker' : buddyFor(sh) ? 'buddy' : 'supervisor');
       continue;
     }
     const prevBand = sh.band;
@@ -572,7 +579,12 @@ async function api(req, res, url) {
   if (p === '/api/heartbeat' && m === 'POST') {
     need(u, 'worker');
     const sh = shifts.get(u.id);
-    if (sh) sh.lastHeartbeat = now();
+    const b = await body(req);
+    if (sh) {
+      sh.lastHeartbeat = now();
+      sh.visibleAt = b.visible === true ? now() : 0;
+      sh.inPocket = b.visible === false; // app put away on purpose: expect silence, keep reaching them by push
+    }
     return send(res, 200, { ok: true });
   }
   if (p === '/api/checkin' && m === 'POST') {
@@ -680,7 +692,7 @@ async function api(req, res, url) {
         workerId: s.workerId, name: users[s.workerId].name, workload: s.workload, band: s.band, simulated: s.simulated,
         acclim: s.acc && s.acc.kind !== 'acclimatised' ? { kind: s.acc.kind, day: s.acc.day, of: s.acc.of } : null,
         heatPct: s.acc && s.acc.cap < 100 ? Math.min(100, Math.round(((s.heatMin || 0) / ((SHIFT_MIN * s.acc.cap) / 100)) * 100)) : null,
-        lastCheckinSec: Math.round((t - s.lastCheckin) / 1000), signal: t - s.lastHeartbeat > T.heartbeatTimeout * 1000 ? 'lost' : 'ok',
+        lastCheckinSec: Math.round((t - s.lastCheckin) / 1000), signal: t - s.lastHeartbeat <= T.heartbeatTimeout * 1000 ? 'ok' : s.inPocket && (pushSubs.get(s.workerId) || []).length ? 'push' : 'lost',
         alert: a ? { id: a.id, stage: a.stage, reason: a.reason, severity: a.severity } : null,
       };
     });
@@ -800,17 +812,30 @@ async function api(req, res, url) {
     const b = await body(req);
     const s = b.subscription;
     if (!s || typeof s.endpoint !== 'string' || !/^https:\/\//.test(s.endpoint)) return send(res, 400, { error: 'bad subscription' });
-    const list = (pushSubs.get(u.id) || []).filter((x) => x.endpoint !== s.endpoint);
+    for (const [wid, l] of pushSubs) pushSubs.set(wid, l.filter((x) => x.endpoint !== s.endpoint)); // one phone, one worker
+    const list = pushSubs.get(u.id) || [];
     list.push({ endpoint: s.endpoint });
     pushSubs.set(u.id, list.slice(-3));
     log(u.name, 'push_subscribed', u.name);
     return send(res, 200, { ok: true });
   }
+  // The service worker has no sign-in token; the push endpoint (a secret URL only this phone and the
+  // server know) identifies the worker instead.
+  const pushOwner = (endpoint) => { const o = typeof endpoint === 'string' && [...pushSubs].find(([, l]) => l.some((x) => x.endpoint === endpoint)); return o ? o[0] : null; };
   if (p === '/api/push/latest' && m === 'POST') {
     const b = await body(req);
-    const owner = [...pushSubs].find(([, l]) => l.some((x) => x.endpoint === b.endpoint));
-    const n = owner && latestNotice.get(owner[0]);
+    const owner = pushOwner(b.endpoint);
+    const n = owner && latestNotice.get(owner);
     return send(res, 200, n || { title: 'HeatMitra', body: 'Open HeatMitra', tag: 'heatmitra' });
+  }
+  // "I'm OK" tapped on a check-in notification, without opening the app.
+  if (p === '/api/push/ok' && m === 'POST') {
+    const b = await body(req);
+    const owner = pushOwner(b.endpoint);
+    const sh = owner && shifts.get(owner);
+    if (!sh) return send(res, 404, { error: 'no active shift' });
+    sh.inPocket = true; // they answered with the app closed: keep using push until they open it again
+    return send(res, 200, recordCheckin(sh, 'ok', [], `${users[owner].name} (notification)`));
   }
   if (p === '/api/site/rule' && m === 'POST') {
     need(u, 'supervisor');

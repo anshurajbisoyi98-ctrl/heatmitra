@@ -281,7 +281,7 @@ Object.assign(I18N.en, {
   dust_y: 'Dust in the air: wear a mask if you have asthma or breathing problems.', dust_o: 'Dusty air: wear an FFP2/N95 mask outdoors.',
   dust_r: 'Dust storm: stop heavy outdoor work, go indoors, wear an FFP2/N95 mask.', uvHigh: 'Very strong sun (UV {u}): cover your skin, wear a hat and use sunscreen.',
   coolVest: 'Wear a cooling vest during rest breaks.', coolSpot: 'Cooling point: {where}', personal: 'Your plan is {c} °C more cautious, learned from your own check-ins.',
-  pushOn: 'Turn on alerts', pushOk: 'Alerts are on, even when the app is closed.', pushNo: 'Alerts are blocked. Allow notifications for this app in your phone settings.',
+  pushOn: 'Turn on alerts', pushOk: 'Alerts are on, even when the app is closed.', pushNo: 'Alerts are blocked. Allow notifications for this app in your phone settings.', pushSpam: 'If your phone ever warns that these alerts may be spam, choose to show them and always allow HeatMitra.',
 });
 Object.assign(I18N.hi, {
   newWorker: 'गर्मी में नए हैं: दिन {d} / 5। आज आपका सुरक्षित गर्मी समय {m} मिनट है।', returning: '{a} दिन बाद वापसी: दिन {d} / 4। आज आपका सुरक्षित गर्मी समय {m} मिनट है।',
@@ -289,7 +289,7 @@ Object.assign(I18N.hi, {
   dust_y: 'हवा में धूल: अस्थमा या साँस की तकलीफ़ हो तो मास्क पहनें।', dust_o: 'धूल भरी हवा: बाहर FFP2/N95 मास्क पहनें।',
   dust_r: 'धूल भरी आँधी: भारी बाहरी काम रोकें, अंदर जाएँ, FFP2/N95 मास्क पहनें।', uvHigh: 'बहुत तेज़ धूप (UV {u}): त्वचा ढकें, टोपी पहनें और सनस्क्रीन लगाएँ।',
   coolVest: 'आराम के ब्रेक में कूलिंग वेस्ट पहनें।', coolSpot: 'ठंडा करने की जगह: {where}', personal: 'आपकी योजना {c} °C ज़्यादा सावधान है, आपके अपने चेक-इन से सीखी गई।',
-  pushOn: 'अलर्ट चालू करें', pushOk: 'अलर्ट चालू हैं, ऐप बंद होने पर भी।', pushNo: 'अलर्ट बंद हैं। फ़ोन की सेटिंग में इस ऐप के नोटिफ़िकेशन की अनुमति दें।',
+  pushOn: 'अलर्ट चालू करें', pushOk: 'अलर्ट चालू हैं, ऐप बंद होने पर भी।', pushNo: 'अलर्ट बंद हैं। फ़ोन की सेटिंग में इस ऐप के नोटिफ़िकेशन की अनुमति दें।', pushSpam: 'अगर फ़ोन कभी कहे कि ये अलर्ट स्पैम हो सकते हैं, तो इन्हें दिखाना चुनें और HeatMitra को हमेशा अनुमति दें।',
 });
 Object.assign(I18N.ar, {
   newWorker: 'جديد على الحر: اليوم {d} من 5. وقتك الآمن في الحر اليوم {m} دقيقة.', returning: 'عودة بعد غياب {a} يومًا: اليوم {d} من 4. وقتك الآمن في الحر اليوم {m} دقيقة.',
@@ -297,7 +297,7 @@ Object.assign(I18N.ar, {
   dust_y: 'غبار في الهواء: ارتدِ كمامة إذا كان لديك ربو أو مشاكل في التنفس.', dust_o: 'هواء مغبر: ارتدِ كمامة FFP2/N95 في الخارج.',
   dust_r: 'عاصفة غبارية: أوقف العمل الثقيل في الخارج، ادخل إلى مكان مغلق، وارتدِ كمامة FFP2/N95.', uvHigh: 'شمس قوية جدًا (UV {u}): غطِّ جلدك وارتدِ قبعة واستخدم واقي الشمس.',
   coolVest: 'ارتدِ سترة تبريد أثناء فترات الراحة.', coolSpot: 'نقطة التبريد: {where}', personal: 'خطتك أكثر حذرًا بمقدار {c} °م، تعلّمناها من تسجيلاتك.',
-  pushOn: 'تفعيل التنبيهات', pushOk: 'التنبيهات مفعّلة حتى عند إغلاق التطبيق.', pushNo: 'التنبيهات محظورة. اسمح بإشعارات هذا التطبيق من إعدادات هاتفك.',
+  pushOn: 'تفعيل التنبيهات', pushOk: 'التنبيهات مفعّلة حتى عند إغلاق التطبيق.', pushNo: 'التنبيهات محظورة. اسمح بإشعارات هذا التطبيق من إعدادات هاتفك.', pushSpam: 'إذا حذّرك هاتفك من أن هذه التنبيهات قد تكون رسائل مزعجة، فاختر عرضها واسمح دائمًا بتنبيهات HeatMitra.',
 });
 Object.assign(I18N.ur, {
   newWorker: 'گرمی میں نئے ہیں: دن {d} / 5۔ آج آپ کا محفوظ گرمی کا وقت {m} منٹ ہے۔', returning: '{a} دن بعد واپسی: دن {d} / 4۔ آج آپ کا محفوظ گرمی کا وقت {m} منٹ ہے۔',
@@ -305,7 +305,7 @@ Object.assign(I18N.ur, {
   dust_y: 'ہوا میں دھول: دمہ یا سانس کی تکلیف ہو تو ماسک پہنیں۔', dust_o: 'دھول بھری ہوا: باہر FFP2/N95 ماسک پہنیں۔',
   dust_r: 'ریت کا طوفان: بھاری بیرونی کام روکیں، اندر جائیں، FFP2/N95 ماسک پہنیں۔', uvHigh: 'بہت تیز دھوپ (UV {u}): جلد ڈھانپیں، ٹوپی پہنیں اور سن اسکرین لگائیں۔',
   coolVest: 'آرام کے وقفے میں کولنگ ویسٹ پہنیں۔', coolSpot: 'ٹھنڈا ہونے کی جگہ: {where}', personal: 'آپ کا منصوبہ {c} °C زیادہ محتاط ہے، آپ کے اپنے چیک اِن سے سیکھا گیا۔',
-  pushOn: 'الرٹ آن کریں', pushOk: 'الرٹ آن ہیں، ایپ بند ہونے پر بھی۔', pushNo: 'الرٹ بند ہیں۔ فون کی سیٹنگز میں اس ایپ کے نوٹیفکیشن کی اجازت دیں۔',
+  pushOn: 'الرٹ آن کریں', pushOk: 'الرٹ آن ہیں، ایپ بند ہونے پر بھی۔', pushNo: 'الرٹ بند ہیں۔ فون کی سیٹنگز میں اس ایپ کے نوٹیفکیشن کی اجازت دیں۔', pushSpam: 'اگر فون کبھی کہے کہ یہ الرٹ اسپیم ہو سکتے ہیں، تو انہیں دکھانا چنیں اور HeatMitra کو ہمیشہ اجازت دیں۔',
 });
 Object.assign(I18N.bn, {
   newWorker: 'গরমে নতুন: দিন {d} / 5। আজ আপনার নিরাপদ গরমের সময় {m} মিনিট।', returning: '{a} দিন পর ফিরেছেন: দিন {d} / 4। আজ আপনার নিরাপদ গরমের সময় {m} মিনিট।',
@@ -313,7 +313,7 @@ Object.assign(I18N.bn, {
   dust_y: 'বাতাসে ধুলো: হাঁপানি বা শ্বাসকষ্ট থাকলে মাস্ক পরুন।', dust_o: 'ধুলোময় বাতাস: বাইরে FFP2/N95 মাস্ক পরুন।',
   dust_r: 'ধুলিঝড়: ভারী বাইরের কাজ বন্ধ করুন, ভেতরে যান, FFP2/N95 মাস্ক পরুন।', uvHigh: 'খুব কড়া রোদ (UV {u}): ত্বক ঢাকুন, টুপি পরুন এবং সানস্ক্রিন লাগান।',
   coolVest: 'বিশ্রামের বিরতিতে কুলিং ভেস্ট পরুন।', coolSpot: 'ঠান্ডা হওয়ার জায়গা: {where}', personal: 'আপনার পরিকল্পনা {c} °C বেশি সতর্ক, আপনার নিজের চেক-ইন থেকে শেখা।',
-  pushOn: 'অ্যালার্ট চালু করুন', pushOk: 'অ্যালার্ট চালু আছে, অ্যাপ বন্ধ থাকলেও।', pushNo: 'অ্যালার্ট বন্ধ। ফোনের সেটিংসে এই অ্যাপের নোটিফিকেশন চালু করুন।',
+  pushOn: 'অ্যালার্ট চালু করুন', pushOk: 'অ্যালার্ট চালু আছে, অ্যাপ বন্ধ থাকলেও।', pushNo: 'অ্যালার্ট বন্ধ। ফোনের সেটিংসে এই অ্যাপের নোটিফিকেশন চালু করুন।', pushSpam: 'ফোন যদি কখনো বলে এই অ্যালার্টগুলো স্প্যাম হতে পারে, তাহলে এগুলো দেখানো বেছে নিন এবং HeatMitra-কে সবসময় অনুমতি দিন।',
 });
 Object.assign(I18N.ml, {
   newWorker: 'ചൂടിൽ പുതിയത്: ദിവസം {d} / 5. ഇന്ന് നിങ്ങളുടെ സുരക്ഷിത ചൂട് സമയം {m} മിനിറ്റ്.', returning: '{a} ദിവസത്തിന് ശേഷം തിരിച്ചെത്തി: ദിവസം {d} / 4. ഇന്ന് നിങ്ങളുടെ സുരക്ഷിത ചൂട് സമയം {m} മിനിറ്റ്.',
@@ -321,7 +321,7 @@ Object.assign(I18N.ml, {
   dust_y: 'വായുവിൽ പൊടി: ആസ്ത്മയോ ശ്വാസതടസ്സമോ ഉണ്ടെങ്കിൽ മാസ്ക് ധരിക്കുക.', dust_o: 'പൊടി നിറഞ്ഞ വായു: പുറത്ത് FFP2/N95 മാസ്ക് ധരിക്കുക.',
   dust_r: 'പൊടിക്കാറ്റ്: കനത്ത പുറംജോലി നിർത്തുക, അകത്തേക്ക് പോകുക, FFP2/N95 മാസ്ക് ധരിക്കുക.', uvHigh: 'വളരെ ശക്തമായ വെയിൽ (UV {u}): ചർമ്മം മൂടുക, തൊപ്പി ധരിക്കുക, സൺസ്ക്രീൻ പുരട്ടുക.',
   coolVest: 'വിശ്രമ ഇടവേളകളിൽ കൂളിംഗ് വെസ്റ്റ് ധരിക്കുക.', coolSpot: 'തണുക്കാനുള്ള സ്ഥലം: {where}', personal: 'നിങ്ങളുടെ പദ്ധതി {c} °C കൂടുതൽ ജാഗ്രതയുള്ളതാണ്, നിങ്ങളുടെ ചെക്ക്-ഇന്നുകളിൽ നിന്ന് പഠിച്ചത്.',
-  pushOn: 'അലേർട്ടുകൾ ഓണാക്കുക', pushOk: 'ആപ്പ് അടച്ചാലും അലേർട്ടുകൾ ഓണാണ്.', pushNo: 'അലേർട്ടുകൾ തടഞ്ഞിരിക്കുന്നു. ഫോൺ ക്രമീകരണങ്ങളിൽ ഈ ആപ്പിന് അറിയിപ്പുകൾ അനുവദിക്കുക.',
+  pushOn: 'അലേർട്ടുകൾ ഓണാക്കുക', pushOk: 'ആപ്പ് അടച്ചാലും അലേർട്ടുകൾ ഓണാണ്.', pushNo: 'അലേർട്ടുകൾ തടഞ്ഞിരിക്കുന്നു. ഫോൺ ക്രമീകരണങ്ങളിൽ ഈ ആപ്പിന് അറിയിപ്പുകൾ അനുവദിക്കുക.', pushSpam: 'ഈ അലേർട്ടുകൾ സ്പാം ആകാമെന്ന് ഫോൺ മുന്നറിയിപ്പ് നൽകിയാൽ, അവ കാണിക്കാൻ തിരഞ്ഞെടുത്ത് HeatMitra-യെ എപ്പോഴും അനുവദിക്കുക.',
 });
 Object.assign(I18N.ne, {
   newWorker: 'गर्मीमा नयाँ: दिन {d} / 5। आज तपाईंको सुरक्षित गर्मी समय {m} मिनेट।', returning: '{a} दिनपछि फर्कनुभयो: दिन {d} / 4। आज तपाईंको सुरक्षित गर्मी समय {m} मिनेट।',
@@ -329,7 +329,7 @@ Object.assign(I18N.ne, {
   dust_y: 'हावामा धुलो: दम वा सास फेर्न गाह्रो भए मास्क लगाउनुहोस्।', dust_o: 'धुलो भएको हावा: बाहिर FFP2/N95 मास्क लगाउनुहोस्।',
   dust_r: 'धुलोको आँधी: भारी बाहिरी काम रोक्नुहोस्, भित्र जानुहोस्, FFP2/N95 मास्क लगाउनुहोस्।', uvHigh: 'धेरै कडा घाम (UV {u}): छाला ढाक्नुहोस्, टोपी लगाउनुहोस् र सनस्क्रिन लगाउनुहोस्।',
   coolVest: 'आरामको समयमा कुलिङ भेस्ट लगाउनुहोस्।', coolSpot: 'चिसो हुने ठाउँ: {where}', personal: 'तपाईंको योजना {c} °C बढी सावधान छ, तपाईंकै चेक-इनबाट सिकिएको।',
-  pushOn: 'अलर्ट खोल्नुहोस्', pushOk: 'एप बन्द हुँदा पनि अलर्ट खुला छन्।', pushNo: 'अलर्ट बन्द छन्। फोनको सेटिङमा यो एपको सूचना अनुमति दिनुहोस्।',
+  pushOn: 'अलर्ट खोल्नुहोस्', pushOk: 'एप बन्द हुँदा पनि अलर्ट खुला छन्।', pushNo: 'अलर्ट बन्द छन्। फोनको सेटिङमा यो एपको सूचना अनुमति दिनुहोस्।', pushSpam: 'फोनले कहिल्यै यी अलर्ट स्प्याम हुन सक्छन् भनेमा, तिनलाई देखाउने रोज्नुहोस् र HeatMitra लाई सधैं अनुमति दिनुहोस्।',
 });
 Object.assign(I18N.tl, {
   newWorker: 'Bago sa init: araw {d} ng 5. Ang ligtas mong oras sa init ngayon ay {m} min.', returning: 'Bumalik pagkatapos ng {a} araw: araw {d} ng 4. Ang ligtas mong oras sa init ngayon ay {m} min.',
@@ -337,7 +337,7 @@ Object.assign(I18N.tl, {
   dust_y: 'May alikabok sa hangin: magsuot ng mask kung may hika o hirap huminga.', dust_o: 'Maalikabok na hangin: magsuot ng FFP2/N95 mask sa labas.',
   dust_r: 'Bagyo ng alikabok: itigil ang mabigat na trabaho sa labas, pumasok sa loob, magsuot ng FFP2/N95 mask.', uvHigh: 'Napakatinding araw (UV {u}): takpan ang balat, magsuot ng sombrero at gumamit ng sunscreen.',
   coolVest: 'Magsuot ng cooling vest habang nagpapahinga.', coolSpot: 'Lugar para magpalamig: {where}', personal: 'Mas maingat nang {c} °C ang plano mo, natutunan mula sa sarili mong mga check-in.',
-  pushOn: 'I-on ang mga alerto', pushOk: 'Naka-on ang mga alerto, kahit sarado ang app.', pushNo: 'Naka-block ang mga alerto. Payagan ang notifications ng app na ito sa settings ng telepono.',
+  pushOn: 'I-on ang mga alerto', pushOk: 'Naka-on ang mga alerto, kahit sarado ang app.', pushNo: 'Naka-block ang mga alerto. Payagan ang notifications ng app na ito sa settings ng telepono.', pushSpam: 'Kung magbabala ang telepono na baka spam ang mga alertong ito, piliing ipakita ang mga ito at laging payagan ang HeatMitra.',
 });
 
 // "Cool first, transport second": instructions for the buddy or bystanders at a suspected heat stroke.

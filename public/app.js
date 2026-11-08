@@ -110,7 +110,11 @@
     W.view = null;
     pollWorker();
     S.timers.push(setInterval(pollWorker, 3000));
-    S.timers.push(setInterval(() => { if (W.me && W.me.shift && !W.offline) api('/api/heartbeat', { method: 'POST' }).catch(() => {}); }, 10000));
+    // Heartbeat, with whether the app is on screen: when it's put away (phone locked), the server stops
+    // treating silence as a lost phone and reaches the worker by push instead.
+    const beat = () => { if (W.me && W.me.shift && !W.offline) api('/api/heartbeat', { method: 'POST', body: { visible: document.visibilityState === 'visible' } }).catch(() => {}); };
+    S.timers.push(setInterval(beat, 10000));
+    document.onvisibilitychange = beat;
     S.timers.push(setInterval(tick, 1000));
   }
 
@@ -220,7 +224,7 @@
   // Background alerts: Web Push, so prompts reach the phone even when the app is closed.
   function pushHtml(me) {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return '';
-    if (me.push && me.push.subscribed) return `<p class="small muted">🔔 ${t('pushOk')}</p>`;
+    if (me.push && me.push.subscribed) return `<p class="small muted">🔔 ${t('pushOk')} ${t('pushSpam')}</p>`;
     if (window.Notification && Notification.permission === 'denied') return `<p class="small muted">🔕 ${t('pushNo')}</p>`;
     return `<button class="btn" data-w="push" style="width:100%;margin-bottom:12px">🔔 ${t('pushOn')}</button>`;
   }
@@ -891,7 +895,7 @@
       <div class="counts">${['green', 'yellow', 'orange', 'red'].map((b) => `<div class="c-${b}"><b>${c.counts[b]}</b>${b}</div>`).join('')}</div>
       ${c.crew.length ? `<table class="list"><tr><th>Worker</th><th>Task</th><th>Check-in</th><th>Signal</th><th></th></tr>
         ${c.crew.map((w) => `<tr><td><span class="dot d-${w.band}"></span>${esc(w.name)}${w.simulated ? ' <span class="tag">sim</span>' : ''}${w.acclim ? ` <span class="tag new">${w.acclim.kind === 'returning' ? 'Back' : 'New'} · day ${w.acclim.day}${w.acclim.of ? `/${w.acclim.of}` : ''}${w.heatPct != null ? ` · heat time ${w.heatPct}%` : ''}</span>` : ''}</td>
-          <td>${w.workload}</td><td>${ago(w.lastCheckinSec)} ago</td><td>${w.signal === 'lost' ? '<b style="color:var(--red)">lost</b>' : 'ok'}</td>
+          <td>${w.workload}</td><td>${ago(w.lastCheckinSec)} ago</td><td>${w.signal === 'lost' ? '<b style="color:var(--red)">lost</b>' : w.signal === 'push' ? '<span title="App closed; alerts go by push">📱 push</span>' : 'ok'}</td>
           <td>${w.alert ? `<span class="tag">${STAGE_LABEL[w.alert.stage]}</span>` : V.config.demo && w.simulated ? `<button class="btn sm" data-silent="${w.workerId}">Simulate going silent</button>` : ''}</td></tr>`).join('')}</table>`
         : '<p class="muted small">No one on shift. Sign a worker in from another tab, or add the simulated crew.</p>'}
       <p class="muted small">Band comes from site weather, task, clothing and acclimatisation. Symptoms and health history are never shown here.</p>`;

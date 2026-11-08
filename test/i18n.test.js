@@ -20,7 +20,7 @@ const CORE = [
   'hyd', 'hydAsk', 'hyd_ok', 'hyd_mid', 'hyd_bad', 'hydNote', 'restNow', 'restBtn', 'resting', 'nextRest',
   'exAsk', 'ex_easy', 'ex_hard', 'ex_veryhard', 'exRest',
   'buddyTitle', 'buddyBody', 'buddyOk', 'buddyHelp', 'yourBuddy', 'smsReply', 'smsStart', 'smsEnd',
-  'newWorker', 'returning', 'expBar', 'capUsed', 'dust_y', 'dust_o', 'dust_r', 'uvHigh', 'coolVest', 'coolSpot', 'personal', 'pushOn', 'pushOk', 'pushNo', 'cfts', 'scanStation', 'stationCode', 'verified', 'visitOnly', 'badCode', 'cup', 'cups',
+  'newWorker', 'returning', 'expBar', 'capUsed', 'dust_y', 'dust_o', 'dust_r', 'uvHigh', 'coolVest', 'coolSpot', 'personal', 'pushOn', 'pushOk', 'pushNo', 'pushSpam', 'cfts', 'scanStation', 'stationCode', 'verified', 'visitOnly', 'badCode', 'cup', 'cups',
 ];
 const holes = (s) => (s.match(/\{\w+\}/g) || []).sort().join(',');
 
