@@ -8,7 +8,23 @@
 
 Heat strain in construction and logistics builds quietly and can turn into heat stroke within an hour. Supervisors mostly work from one rule (the UAE midday break, 12:30–15:00, 15 Jun to 15 Sep) and general thresholds. But the same weather affects a new worker in a coverall doing heavy lifting very differently from an acclimatised signaller. Our back-test of summer 2025 in Abu Dhabi found that **77% of the working hours above the NIOSH limit for moderate work fall outside the midday ban** (docs/BACKTEST.md).
 
-## 2. What HeatMitra does
+## 2. Built for workers who won't learn an app
+
+Outdoor workers are tired, busy and often not used to apps, so every step HeatMitra asks of them has to earn its place. We measured the effort and cut it:
+
+| | Before | Now |
+|---|---|---|
+| "Are you OK?" prompts in a hot shift (summer 2025 calendar, heavy work) | median 24, worst 33 | **median 9, worst 12** (one an hour, at the rest break; workers at higher risk every 30 min) |
+| Worker's main screen | 9 buttons, 173 words, 2 screens | **3 buttons, 52 words, 1 screen**; everything else under "More" |
+| Starting a shift | pick task and clothing from two lists | **one tap**: the supervisor sets task and clothing in Crew setup |
+| Answering a prompt | open the app and tap | tap "I'm in the shade" at the rest break, tap **I'm OK on the lock-screen notification**, or the foreman checks the whole crew in one tap |
+| Workers with no smartphone | SMS only | **SMS, WhatsApp, automated voice calls** (keypad 1/2), or **no phone at all** (the foreman's crew check) |
+| Signing in | name picker (demo) | scan the site's **join QR**, type the phone number on the crew list, enter the code from the SMS |
+| Supervisor screen | 15 sections, about 1,300 words | **Today** tab: day summary, crew check, alerts, crew, readiness (about 250 words). Planning and analytics are on **Insights** |
+
+Missed check-ins are grouped into one list for the supervisor instead of an alarm per person, and the worker gets one louder reminder before anyone else is asked. The aim is fewer, meaningful prompts, because prompts that come too often get ignored.
+
+## 3. What HeatMitra does
 
 | Challenge requirement | How HeatMitra meets it |
 |---|---|
@@ -24,7 +40,7 @@ Heat strain in construction and logistics builds quietly and can turn into heat 
 | Wearable heat strain (optional, consented) | Any standard Bluetooth heart-rate sensor (GATT Heart Rate Service, via Web Bluetooth). The phone estimates core temperature from heart rate (Buller et al. 2013 Kalman filter) and computes the Physiological Strain Index (Moran et al. 1998). Heart rate stays on the phone. PSI 7 or above alerts the supervisor; 9 or above goes to the first-aider as an emergency. Values are shown only to the first-aider, and only with consent. A demo mode simulates a rising heart rate |
 | Hydration self-check | Armstrong 8-colour urine chart: tap a colour, get advice in your language, read aloud. Never leaves the phone |
 | On-site sensor calibration | The supervisor enters a WBGT meter reading. The offset from the model (capped at ±6 °C) corrects every plan at the site. Audited. See `docs/RESEARCH.md` |
-| Rest-break cycle and adherence | The worker app runs this hour's work/rest cycle: "rest break now" with a countdown, read aloud, and an "I'm resting in the shade" button. The supervisor sees one crew-level adherence figure (rest breaks taken ÷ rest breaks due), never a per-worker figure, so it can't be used for discipline. This is the challenge's "adherence to recommended controls" measure |
+| Rest-break cycle and adherence | The worker app runs this hour's work/rest cycle: "rest break now" with a countdown, read aloud, and an "I'm resting in the shade" button. The rest break is also the check-in, so one tap answers both. The supervisor sees one crew-level adherence figure (rest breaks taken ÷ rest breaks due), never a per-worker figure, so it can't be used for discipline. This is the challenge's "adherence to recommended controls" measure |
 | Gulf country rule packs | UAE, Saudi Arabia, Qatar, Kuwait, Oman and Bahrain midday bans (dates and hours), plus Qatar's stop-work rule at WBGT 32.1 °C. Chosen per site from the supervisor console; a Qatar site (Lusail) is included. Taken from GCC law-firm guides (June 2026), with a note to check each labour ministry because sources disagree on some hours |
 | Case outcomes | The first-aider closes each case as heat cramps, heat exhaustion, suspected heat stroke, not heat-related, or false alarm. These feed the "heat-related symptoms or incidents" measure |
 | Water and shade logistics | From today's plan: litres of cool water, 19-litre jugs, shade places needed at once in the worst hour, and hours where moderate work must stop, for any crew size and shift |
@@ -33,7 +49,11 @@ Heat strain in construction and logistics builds quietly and can turn into heat 
 | 3-day outlook | For each of the next three days: peak WBGT, hours where heavy work must stop, the best window, and an hour-by-hour strip. Days with 6 or more STOP hours are flagged so supervisors can plan early or night shifts in advance. In replay mode it uses the following three real days |
 | Eight worker languages | English, Hindi, Arabic, Urdu, Bengali, Malayalam, Nepali and Tagalog, the largest migrant workforces on Gulf sites, with voice where the phone has it. An automated test checks every language has every core string with the same placeholders. The morning briefing is in the first four. All translations need review by native speakers |
 | Buddy system | Workers are paired, as NIOSH recommends. When someone doesn't answer a check-in or their phone goes silent, their buddy's phone gets "Check on {name} now" first, read aloud. The buddy taps "they're OK" (case closed) or "they need help" (straight to the first-aider). The buddy sees only the name and that they aren't answering, nothing clinical. If the buddy is unavailable or doesn't answer, it moves on to the supervisor. Ladder: worker → buddy → supervisor → first-aider |
-| SMS fallback for basic phones | Workers without smartphones text START, 1 (OK), 2 (unwell) or STOP. Check-in prompts and risk changes are texted in the worker's language, and the same ladder applies. The webhook `/api/sms/inbound` accepts SMS-gateway (Twilio-style) form-encoded From/Body and needs a shared secret in production. Outgoing texts can be bridged to a gateway via `SMS_WEBHOOK_URL`. The console has a phone simulator for the demo |
+| Basic phones and no phones | **SMS or WhatsApp:** workers text START, 1 (OK), 2 (unwell) or STOP; prompts and risk changes come in their language. `/api/sms/inbound` takes Twilio-style From/Body (WhatsApp numbers arrive as `whatsapp:+…`) and needs a shared secret in production; outgoing messages go to `SMS_WEBHOOK_URL`. **Voice calls** for workers who can't read: the check-in is spoken in their language and answered on the keypad, via TwiML (`/api/voice/twiml`, `/api/voice/gather`, outgoing calls through `VOICE_WEBHOOK_URL`). **No phone:** the foreman starts their shift and checks them in with Crew check. The console has a phone simulator for all three |
+| Crew setup and sign-in | Supervisors paste their crew from Excel or an HR list (`name, phone, language, task, clothing, buddy`) and set each worker's task, clothing, buddy and channel. Workers sign in by scanning the site's join QR and entering the phone number on the list; a one-time code comes by SMS (6 digits, 10 minutes, 5 tries). No password, no app store, and numbers not on a list can't sign in. Phone numbers are visible only to supervisors |
+| Foreman's crew check | On the Today tab, the foreman walks the crew, unticks anyone not seen, and taps "All resting in the shade" or "Everyone seen, OK". That records each ticked worker's check-in (and rest break), whether they have a phone or not |
+| Heat dose and kidney prompt | Each worker sees their own hours in high heat this week and this season. Past 100 hours in a season they're prompted to ask the site clinic for a simple kidney check (blood and urine test) and to keep drinking water. Supervisors see only a crew count. Why: repeated heat and dehydration are linked to kidney injury in hot-climate workers (CKDnT; Adelante). The 100-hour threshold is our assumption, not a validated cut-off |
+| Anonymous worker reports | One tap under "More": no drinking water, no shade, made to work in the midday ban, rest break not allowed, no first aid or cooling, something else unsafe. No name and no time of day are stored, one report per kind per worker per day, and counts under 5 show as "<5". Managers see counts for the last 7 days and whether a problem was reported today. In a real deployment these go to the company's HSE team or the labour inspector, not only the site supervisor |
 | HSE / regulator report | One click gives a printable report or CSV of crew-level figures: hours by band per task type, alerts by reason, buddy checks, first-aider cases and outcomes, response time, rest adherence and perceived exertion. No names; counts from 1 to 4 are shown as "<5" |
 | **Cool first, transport second** (heat-stroke response) | When a case becomes an emergency (red-flag symptom, strain index ≥ 9, or a buddy reporting the worker needs help), the first-aider gets a step-by-step on-site cooling protocol: cold-water immersion (or a tarp, ice-water sheets or towels if no tub is confirmed), call the ambulance at the same time, keep cooling until the worker is alert or about 39 °C, then hand over. A cooling clock records time from alert to cooling, which is reported as a measure. Buddies and bystanders get "start cooling now" instructions in their language. Evidence: no deaths when cooling was fast enough across 521 cases (Filep 2020); 274 consecutive survivors with on-site immersion (Demartini 2015) |
 | New and returning worker protection | Acclimatisation is worked out automatically from each worker's days in the heat (NIOSH 2016): new workers get 20% of a usual shift's heat exposure on day 1, +20% a day; after 7+ days away, 50/60/80/100% over 4 days; after 6+ weeks away, the new-worker schedule again. Minutes in the heat are counted live; when today's safe heat time is used up, the worker is moved to light work in the shade. Supervisors see "New · day 1/5" and "Back · day 2/4" badges. Why: 9 of 13 US worker heat deaths happened in the first 3 days on the job (CDC MMWR 2014) |
@@ -47,14 +67,14 @@ Heat strain in construction and logistics builds quietly and can turn into heat 
 ### Escalation ladder
 
 ```
-check-in due ─► worker "Are you OK?" ─(20 s demo / 90 s real)─► buddy ─(20 s / 120 s)─► supervisor ─(25 s / 120 s)─► first-aider
+check-in due ─► worker (+ one reminder) ─(40 s demo / 3 min real)─► buddy ─(20 s / 120 s)─► supervisor ─(25 s / 120 s)─► first-aider
 phone silent ───────────────────────────────────────────────► buddy ───────────────────► supervisor ─────────────► first-aider
 red-flag symptom (confused, fainted, hot dry skin, vomiting) ──────────────────────────► first-aider (emergency)
 ```
 
-Check-in frequency follows the band: every 60 min in Caution, every 30 min in Take breaks, every 20 min in Stop. A server-side sweeper moves alerts up the ladder, so escalation still happens when the phone is dead, lost or out of coverage. This design comes from MargMitra's guardian escalation (traveller → guardian → emergency contacts).
+Check-ins come once an hour whenever there is heat risk, at the start of the rest break, and every 30 min for workers at higher risk (new or returning, a tightened personal limit, "very hard" last time, or today's safe heat time used up). Workers with no phone start at the supervisor, who answers with Crew check. A locked phone that push can reach is asked first instead of raising a lost-signal alarm. A server-side sweeper moves alerts up the ladder, so escalation still happens when the phone is dead, lost or out of coverage. This design comes from MargMitra's guardian escalation (traveller → guardian → emergency contacts).
 
-## 3. The science
+## 4. The science
 
 | Step | Method | Source |
 |---|---|---|
@@ -71,7 +91,7 @@ Check-in frequency follows the band: every 60 min in Caution, every 30 min in Ta
 
 The decision logic is deliberately rule-based and explainable: every number the worker or supervisor sees can be traced to a formula and a source. There is no black-box model in the safety path.
 
-## 4. Architecture
+## 5. Architecture
 
 ```
  Phone (PWA)                         Server (Node, no dependencies)              Data
@@ -85,9 +105,9 @@ The decision logic is deliberately rule-based and explainable: every number the 
 
 - `public/heat.js` is one risk engine shared by the server, the browser and the back-test, so the phone gives the same answer offline as the server does online.
 - Roles are enforced on the server: a worker cannot read alerts (403), and supervisors receive alert objects with no symptom field at all.
-- **Scaling path:** the prototype keeps state in memory. Production would move shifts and alerts to Postgres and the sweeper's timers to Redis keys with TTLs (the pattern MargMitra already uses). It would also add SMS/WhatsApp/IVR channels for workers without smartphones, and an optional on-site WBGT sensor feed that replaces the gridded estimate.
+- **Scaling path:** the prototype keeps state in memory and saves it to disk. Production would move shifts and alerts to Postgres and the sweeper's timers to Redis keys with TTLs (the pattern MargMitra already uses), connect real SMS, WhatsApp and voice gateways to the webhooks that already exist, and add an optional on-site WBGT sensor feed that replaces the gridded estimate.
 
-## 5. Back-test (summary)
+## 6. Back-test (summary)
 
 Abu Dhabi (Mussafah), 1 Jun to 30 Sep 2025, 06:00–18:00. Forecast as issued (Open-Meteo historical forecast) vs ERA5 reanalysis, same engine on both. Full table in `docs/BACKTEST.md`.
 
@@ -97,7 +117,7 @@ Abu Dhabi (Mussafah), 1 Jun to 30 Sep 2025, 06:00–18:00. Forecast as issued (O
 - 06:00 briefing gives a median **4 h** of notice before heavy work must stop.
 - **77.2%** of hours above the moderate-work limit fall outside the midday ban.
 
-## 6. Data sources
+## 7. Data sources
 
 | Source | Use | Licence |
 |---|---|---|
@@ -108,14 +128,14 @@ Abu Dhabi (Mussafah), 1 Jun to 30 Sep 2025, 06:00–18:00. Forecast as issued (O
 
 No personal data was collected. The organisers provided no data.
 
-## 7. Assumptions
+## 8. Assumptions
 
 - WBGT can be estimated from gridded weather for a site; the site's emergency number is configured per site (998 in the UAE, 112 in India).
 - Workers can use a basic smartphone during breaks; supervisors and first-aiders have a phone or tablet.
-- Task, clothing and days on site are self-reported at shift start (the employer can pre-fill them).
-- Demo mode compresses timers (one check-in minute = 2 s) and uses passwordless sign-in.
+- Task and clothing are set by the supervisor in Crew setup (the worker can change them); days in the heat are counted from shifts.
+- Workers sign in with the phone number on their crew list. Demo mode compresses timers (one check-in minute = 2 s), shows the sign-in code on screen instead of texting it, and also offers a name picker.
 
-## 8. Limitations (read these)
+## 9. Limitations (read these)
 
 - **Not clinically validated** and not a medical device. HeatMitra supports decisions; it does not diagnose. Abnormal or urgent cases always go to people.
 - WBGT is **estimated** from ~10 km gridded weather, not measured on site. The globe-temperature term is a heuristic, not the Liljegren model, and does not account for local radiant sources (asphalt, steel, machinery).
@@ -123,23 +143,24 @@ No personal data was collected. The organisers provided no data.
 - No wearable or physiological signals yet. Personal risk uses task, clothing and acclimatisation only.
 - Translations (eight languages) are short, simple phrases written for the prototype. They need review by native speakers before use with workers. Voice depends on the device's text-to-speech voices.
 - State is saved to disk every 10 seconds and restored after a restart (sign-ins, shifts, alerts, audits). Render's free plan has no persistent disk, so a redeploy there still starts fresh; production would use a database. Demo sign-in and no rate limiting: this is a prototype, not production.
-- Frequent check-ins in the Stop band could cause alert fatigue; the intervals need tuning with workers.
+- Hourly check-ins are a trade-off: fewer prompts get answered, but a worker could get worse between them. The always-visible "I feel unwell" button, the buddy system, the foreman's crew check and optional wearables cover the gap. The interval needs tuning in a pilot.
+- WhatsApp, voice calls and sign-in codes need gateway accounts (for example Twilio) to reach real phones; the demo simulates them. Spoken-language support varies by gateway and language.
 - The cooling protocol guides trained first-aiders; it is not a substitute for medical care, and the ~39 °C stop point assumes a core-temperature measurement that many sites won't have.
 - Personal limits learn from a handful of check-ins with a simple model and a fixed prior; they have not been validated.
 - PM10 bands use 24-hour EPA breakpoints as hourly guidance; CAMS dust is modelled, not measured on site.
-- The live demo is kept awake by a GitHub Actions ping every 10 minutes until 12 Dec 2026, so judges don't hit a cold start.
+- The live demo runs on Render's free plan. A GitHub Actions ping tries to keep it awake, but GitHub doesn't guarantee scheduled runs, so the first visit after a quiet spell can take up to a minute and starts with an empty demo.
 - Station codes are static in the prototype, so a worker could type a code without being there; production would use rotating codes on a small display or Bluetooth beacons. Water counts are self-reported.
 - Chrome on Android can hide web notifications behind a "possible spam" warning (an on-device check). We saw it on a real phone; the app tells workers to choose "show" and always allow HeatMitra. Production would use its own domain and an installed app.
 - Push needs the app installed on iPhone (iOS 16.4+); VAPID keys come from a seed Render generates once (render.yaml), so push subscriptions survive redeploys.
 
-## 9. Built during the challenge vs reused
+## 10. Built during the challenge vs reused
 
 All code in this repository was written for this challenge. From MargMitra (our women's-safety navigation project) we reused **designs, not code**: the server-side escalation ladder that works when the phone is off, consent-based access (only people the user chose can see sensitive data), and scoring risk from location-based data.
 
-## 10. Path to a pilot
+## 11. Path to a pilot
 
 - **Buyer:** HSE managers at construction, logistics and facilities contractors in the UAE, who already have to manage heat exposure and the midday break.
 - **Pilot:** one site, 50–100 workers, 6 weeks of summer. Add an on-site WBGT meter to calibrate the estimate.
-- **What we'd measure:** how many check-in prompts workers answer, time to a human response, adherence to rest breaks, heat-related first-aid cases against the previous season, and false-alarm feedback from workers. We'd also check that results are fair across languages and nationalities.
+- **What we'd measure:** see `docs/PILOT.md` for the 2-week field protocol (prompt response, effort per worker, estimate vs on-site meter, rest adherence, cases, and fairness across languages).
 - **Model (assumption):** per-worker monthly subscription for the employer; free for workers.
-- **Next:** SMS/IVR channel, wearable heart-rate input with consent, an independent clinical review of thresholds and wording, and adaptation for India's heatwave season (Delhi is already a configured site).
+- **Next:** connect SMS, WhatsApp and voice gateways, an independent clinical review of thresholds and wording, native-speaker review of the eight languages, and adaptation for India's heatwave season (Delhi is already a configured site).

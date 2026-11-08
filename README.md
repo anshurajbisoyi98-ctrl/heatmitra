@@ -21,48 +21,30 @@ DEMO=0 npm start     # real-time timers, demo sign-in disabled
 Deploy: `Dockerfile` and `render.yaml` are included (single process, `PORT` env var).
 - State is saved to `data/cache/state.json` every 10 s and restored at start (`STATE_FILE` to move it, e.g. onto a mounted volume).
 - Push keys come from `VAPID_SEED` (Render generates it once), so subscriptions survive redeploys.
-- Locked phones: the app reports when it is put away, so the server keeps reaching the worker by push (check-ins have an "I'm OK" button) instead of raising a lost-signal alarm.
-- `.github/workflows/keep-awake.yml` pings the live demo every 10 minutes until 12 Dec 2026, so Render's free plan doesn't put it to sleep.
+- Gateways (optional): `SMS_WEBHOOK_URL` for outgoing SMS, WhatsApp and sign-in codes; `VOICE_WEBHOOK_URL` for outgoing voice calls (TwiML); `SMS_SECRET` protects the inbound webhooks; `PUBLIC_URL` is used in voice-call callbacks.
+- `.github/workflows/keep-awake.yml` pings the live demo every 10 minutes until 12 Dec 2026. GitHub doesn't guarantee scheduled runs, so an external uptime monitor is more reliable.
 
-## 3-minute demo
+## Demo tour
 
-1. **Tab 1:** sign in as **Ravi Kumar** (worker, Hindi). Tick consent, start the shift. You see the band (STOP), this hour's work/rest plan, an advance warning and the check-in timer. Switch language at the top: eight worker languages (English, हिन्दी, العربية, اردو, বাংলা, മലയാളം, नेपाली, Tagalog).
-2. **Tab 2:** sign in as **Site supervisor**. The planner shows every hour of the day by task type, and the best window for heavy work. The site replays 10 Jun 2025 (real ERA5 weather) at today's clock time; press **Live** for today's forecast.
-3. Press **Add simulated crew**, then **Simulate going silent** on Mohammed. About 30 s later a "phone signal lost" alert appears. If nobody acknowledges it, it moves to the first-aider on its own.
-4. Back in tab 1, wait for **"Are you OK?"** (about 40 s in the red band). Tap **I feel unwell**, then pick *Confused*. The worker gets the emergency screen with a call button. The supervisor sees "emergency" but no symptoms.
-5. **Tab 3:** sign in as **Site first-aider**. Ravi's symptoms are visible because he consented; Mohammed's case shows none. Press *Attending*, then *Resolve*. Every step is in the audit log.
-6. Turn off the network in tab 1 (dev tools → Offline). The app keeps showing the saved plan, and red-flag advice still works.
-7. In the supervisor console, scroll down:
-   - **Regional heat map** (Uber H3 hexagons): press **Play the day** to watch heat move across the area hour by hour. Red outlines mark where the chosen task must stop.
-   - **Smart task scheduler:** gives the heaviest tasks the coolest hours and flags work that can't be done safely today.
-   - **Summer heat calendar:** every hour of summer 2025, with the midday-ban window outlined. Switch the task type to compare.
-   - **Calibrate:** type an on-site WBGT meter reading (e.g. 33) in the header. Every plan at the site corrects itself.
-8. In the worker app:
-   - **Heart-rate sensor → Demo** simulates a rising heart rate. HeatMitra estimates core temperature and the strain index, and at a strain index of 7 it tells the worker to stop and alerts the supervisor. **Connect Bluetooth sensor** works with real chest straps in Chrome.
-   - **Hydration check** is the urine-colour self-check.
+Open the worker in one tab and the supervisor in another (sign-in is per tab). Timers are compressed: one check-in minute is 2 seconds.
 
-   - **Rest break now:** when the plan calls for rest, the worker gets a countdown and taps **I'm resting in the shade**.
-9. Back in the supervisor console:
-   - **Morning briefing** creates the 06:00 safety talk in four languages, to read aloud or print.
-   - **Water and shade** works out the litres of water and shade places the crew needs.
-   - The **rule selector** switches between Gulf country rules. Pick the **Lusail (Qatar)** site to see Qatar's 10:00–15:30 window and the 32.1 °C stop rule.
-10. **First-aider:** close each case with an outcome (cramps, exhaustion, suspected heat stroke…). Outcomes, and the crew's rest-break adherence, appear in the supervisor's safety measures.
+**Worker (low effort by design)**
+1. **Sign in with a phone number:** type `+971 50 000 0101` under "Sign in with your phone number" and enter the code (the demo shows it instead of texting it). You're Ravi, in Hindi. Or use the name picker below.
+2. **One tap to start:** the task and clothing are set by the supervisor. Tap **Start shift**.
+3. **One screen, three buttons:** the band (STOP), this hour's work/rest, the rest break, **I'm OK** and **I feel unwell**. Everything else is under **More**. Switch language at the top (eight languages).
+4. **The rest break is the check-in:** about every 2 minutes (an hour in demo time) "Rest break now" pops up; **I'm resting in the shade** answers it. Ignore it and you get one reminder before it goes to the buddy and the supervisor.
+5. **Emergency:** tap **I feel unwell** → *Confused*. The worker gets cooling steps and a call button; the first-aider gets the cool-first protocol with a clock; the supervisor sees "emergency" but no symptoms.
+6. **Under More:** scan the rest-station QR (or type **4271**), **+1 cup** of water, hours in high heat this season with a kidney-check prompt (Ravi has 135 h), the optional heart-rate sensor, **🔔 Turn on alerts** (check-ins then have **I'm OK** on the lock screen), and **📣 Report a problem (anonymous)**.
 
-11. When "Are you OK?" appears, answer **🥵 Very hard** twice: the worker gets rest advice and the supervisor gets a "work feels very hard" alert.
-12. The supervisor's **Next 3 days** card shows heavy-work STOP hours and best windows ahead, and flags hard days.
+**Supervisor**
+7. **Today tab:** the day in four lines, **Crew check**, alerts, crew and readiness. Press **Add simulated crew**, untick someone, then **✓ All resting in the shade**: everyone ticked is checked in at once.
+8. **Buddy check:** **Simulate going silent** on Mohammed (Ravi's buddy). About 30 s later Ravi's phone shows "Check on Mohammed now".
+9. **Crew setup tab:** the join QR for the gate, CSV import (`name, phone, language, task, clothing, buddy`; leave the phone empty for a worker with no phone), and the crew table: task, clothing, buddy and how each person is reached (App, SMS, WhatsApp, Voice call, No phone). **Start shift** for Rajesh, who has no phone, then cover him with Crew check.
+10. **Basic phones:** on Insights, the phone panel stands in for Abdul's phone. Tap **START**, then **1** or **2**. Switch him to **WhatsApp** or **Voice call** in Crew setup to see the other channels (calls are answered with keypad 1/2).
+11. **Insights tab:** work/rest planner (with dust and UV), next 3 days, H3 heat map (**▶ Play the day**), task scheduler, water and shade, break check (**Audit** a station, **🖨 QR posters**), anonymous worker reports, safety measures, back-test, summer heat calendar and the audit log.
+12. **Header:** **Replay day** (try 2025-08-01 for the hottest day, 2025-07-07 for a dust storm), **Live**, the Gulf rule selector, **📋 Morning briefing**, **📄 Report** (print or CSV), and **Calibrate** with an on-site WBGT reading.
 
-13. **Buddy check:** sign Ravi in, start his shift, then in the supervisor tab add the simulated crew and press **Simulate going silent** on Mohammed (Ravi's buddy). About 30 s later Ravi's phone shows "Check on Mohammed now".
-14. **SMS fallback:** in the supervisor console's phone panel, tap **START**, then **1** or **2**. Abdul gets every message in Bengali, and "2" alerts the first-aider.
-15. **📄 Report** in the supervisor header gives the crew-level HSE report: print it or download it as CSV.
-
-16. **New and returning workers:** sign in as **Bikash** (day 1: 20% safe heat time) or look for the **Back · day 1/4** badge on Suresh. The heat-time bar fills while he works; when it's full he's moved to light work in the shade.
-17. **Cool first, transport second:** as a worker, report *Fainted*. The first-aider gets the cooling protocol with a clock; tap **Cooling started** and **Ambulance called**. Time-to-cooling appears in the safety measures and the report.
-18. **Site readiness:** the supervisor signs off shade, water, tub and ice, first-aider and cooling vests. Missing critical items are flagged, and the first-aider sees whether the tub is ready.
-19. **Dust and UV:** the planner shows PM10 and UV rows. Replay **2025-07-07** for a real dust event (PM10 up to 415 µg/m³).
-20. **Background alerts:** in Chrome (or the installed app), tap **🔔 Turn on alerts**. A supervisor can send a test alert through `POST /api/demo/notify/<workerId>`.
-21. **Personal limits:** answer **🥵 Very hard** a few times at low heat, and the worker's plan becomes stricter ("1 °C more cautious, learned from your check-ins").
-
-22. **Break check:** when Ravi's **Rest break now** card appears, tap **📍 Scan the rest-station QR** (or type **4271**, Rest cabin B) to confirm the break, and tap **🥤 +1 cup** to log water. The supervisor's **Break check** card shows the crew score. **Audit** a station (untick anything wrong), and **🖨 QR posters** prints the station posters.
+**First-aider:** symptoms appear only with consent. Run the cooling protocol (**Cooling started**, **Ambulance called**) and close each case with an outcome.
 
 The research behind these features is in `docs/RESEARCH.md`.
 

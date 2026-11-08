@@ -84,9 +84,17 @@ A short, time-boxed literature scan, done on the challenge day. Google Scholar b
 - **Adelante (Glaser 2020, *Occup Environ Med*; Hansson 2025, 1,044 workers over four harvests)**: kidney injury fell from 21% to 1% (incidence ratio per harvest 0.33), and clinical acute kidney injury fell from 20 to 8 per 1,000 worker-months. The gains tracked how well the programme was put into practice: crews where it was carried out poorly did not improve. https://pubmed.ncbi.nlm.nih.gov/32404530/ · https://doi.org/10.1136/oemed-2025-110128
 - **In HeatMitra:** QR check-in at the rest station, a water counter, Adelante-style station audits every 2 hours, and a crew-level score.
 
+### 13. Low effort by design: fewer, meaningful prompts (built)
+- **Alarm fatigue (Sendelbach & Funk 2013, *AACN Adv Crit Care* 24(4):378–386):** in hospitals, frequent alarms that mostly need no action desensitise staff, who then respond slowly or miss the real ones. The same risk applies to a worker who gets "Are you OK?" every 20 minutes.
+- **In HeatMitra:** check-ins dropped from a median of 24 to 9 per hot shift (summer 2025 calendar, heavy work). They come once an hour at the start of the rest break, so the rest prompt is the check-in, and every 30 min only for workers at higher risk. Answers count from the app, the lock-screen notification, a station QR scan, SMS, WhatsApp, a voice call or the foreman's crew check. Missed check-ins reach the supervisor as one list, not one alarm each. The interval is a judgement call to tune in the pilot (`docs/PILOT.md`).
+
+### 14. Cumulative heat dose and anonymous reporting (built)
+- **Kidney health:** repeated heat and dehydration are linked to kidney injury in hot-climate workers (CKDnT; Adelante above). Each worker sees their own hours in high heat this week and season and, past 100 hours, a prompt to ask for a simple kidney check. The threshold is our assumption, to be set with an occupational-health partner.
+- **Enforcement gaps:** Human Rights Watch (2026) reports that Gulf heat protections fall short in practice. Workers can report problems (no water, no shade, work during the midday ban, rest refused, no first aid) without their name or the time being stored; counts under 5 show as "<5".
+
 ## Found, not built yet (roadmap)
 - **Off-shift recovery** (hot housing, short sleep): 29% of 55 workers reached a higher core temperature off work than at work (Krisher 2025); about 5 h of sleep in rooms around 30 °C (Lucas 2025). https://pubmed.ncbi.nlm.nih.gov/40193146/
-- **Kidney screening** for workers with high cumulative heat exposure, with occupational-health partners.
+- **Kidney screening** with occupational-health partners (HeatMitra now prompts workers; the clinic side is still to be set up).
 - **Heat-triggered procedures with an inspector-readable log**: California's standard was associated with 15–27% fewer injury claims on hot days (WCRI 2025; not peer-reviewed).
 
 - **Thermal Work Limit (TWL):** (deliberately not approximated: it needs a full heat-balance model, and a safety index we can't verify shouldn't ship)
