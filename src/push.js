@@ -12,7 +12,21 @@ const path = require('path');
 const FILE = path.join(__dirname, '..', 'data', 'cache', 'vapid.json');
 const b64u = (buf) => Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
+// Same key pair from the same seed, so push subscriptions survive redeploys. On Render the seed is
+// generated once and kept by the platform (render.yaml: generateValue), so no one handles a private key.
+function keysFromSeed(seed) {
+  let d = crypto.createHash('sha256').update(`heatmitra-vapid:${seed}`).digest();
+  const ecdh = crypto.createECDH('prime256v1');
+  for (let i = 0; i < 4; i++) {
+    try { ecdh.setPrivateKey(d); break; } catch { d = crypto.createHash('sha256').update(d).digest(); } // out of range: rehash
+  }
+  const pub = ecdh.getPublicKey();
+  const key = crypto.createPrivateKey({ key: { kty: 'EC', crv: 'P-256', d: b64u(d), x: b64u(pub.subarray(1, 33)), y: b64u(pub.subarray(33)) }, format: 'jwk' });
+  return { publicKey: b64u(pub), privatePem: key.export({ type: 'pkcs8', format: 'pem' }) };
+}
+
 function loadKeys() {
+  if (process.env.VAPID_SEED) return keysFromSeed(process.env.VAPID_SEED);
   if (process.env.VAPID_PUBLIC && process.env.VAPID_PRIVATE_PEM) {
     return { publicKey: process.env.VAPID_PUBLIC, privatePem: process.env.VAPID_PRIVATE_PEM.replace(/\\n/g, '\n') };
   }
@@ -48,4 +62,4 @@ async function send(subscription, { ttl = 600, urgency = 'high' } = {}) {
   return r.status;
 }
 
-module.exports = { publicKey: KEYS.publicKey, vapidJwt, send };
+module.exports = { publicKey: KEYS.publicKey, vapidJwt, send, keysFromSeed };

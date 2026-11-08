@@ -8,3 +8,5 @@ services:
     envVars:
       - key: DEMO
         value: "1"
+      - key: VAPID_SEED # generated once by Render and kept, so push keys survive redeploys
+        generateValue: true

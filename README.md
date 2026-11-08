@@ -19,6 +19,9 @@ DEMO=0 npm start     # real-time timers, demo sign-in disabled
 ```
 
 Deploy: `Dockerfile` and `render.yaml` are included (single process, `PORT` env var).
+- State is saved to `data/cache/state.json` every 10 s and restored at start (`STATE_FILE` to move it, e.g. onto a mounted volume).
+- Push keys come from `VAPID_SEED` (Render generates it once), so subscriptions survive redeploys.
+- `.github/workflows/keep-awake.yml` pings the live demo every 10 minutes until 12 Dec 2026, so Render's free plan doesn't put it to sleep.
 
 ## 3-minute demo
 

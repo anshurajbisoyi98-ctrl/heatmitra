@@ -122,13 +122,14 @@ No personal data was collected. The organisers provided no data.
 - The back-test checks the warning against **weather**, not health outcomes. ERA5 is reanalysis, not a station. The historical-forecast archive is close to same-day, so true day-ahead skill will be lower.
 - No wearable or physiological signals yet. Personal risk uses task, clothing and acclimatisation only.
 - Translations (eight languages) are short, simple phrases written for the prototype. They need review by native speakers before use with workers. Voice depends on the device's text-to-speech voices.
-- In-memory storage, demo sign-in, no rate limiting: this is a prototype, not production.
+- State is saved to disk every 10 seconds and restored after a restart (sign-ins, shifts, alerts, audits). Render's free plan has no persistent disk, so a redeploy there still starts fresh; production would use a database. Demo sign-in and no rate limiting: this is a prototype, not production.
 - Frequent check-ins in the Stop band could cause alert fatigue; the intervals need tuning with workers.
 - The cooling protocol guides trained first-aiders; it is not a substitute for medical care, and the ~39 °C stop point assumes a core-temperature measurement that many sites won't have.
 - Personal limits learn from a handful of check-ins with a simple model and a fixed prior; they have not been validated.
 - PM10 bands use 24-hour EPA breakpoints as hourly guidance; CAMS dust is modelled, not measured on site.
+- The live demo is kept awake by a GitHub Actions ping every 10 minutes until 12 Dec 2026, so judges don't hit a cold start.
 - Station codes are static in the prototype, so a worker could type a code without being there; production would use rotating codes on a small display or Bluetooth beacons. Water counts are self-reported.
-- Push needs the app installed on iPhone (iOS 16.4+); VAPID keys regenerate on each deploy unless set as environment variables, which drops existing subscriptions.
+- Push needs the app installed on iPhone (iOS 16.4+); VAPID keys come from a seed Render generates once (render.yaml), so push subscriptions survive redeploys.
 
 ## 9. Built during the challenge vs reused
 

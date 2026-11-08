@@ -866,6 +866,55 @@ function serveStatic(req, res, url) {
   fs.createReadStream(file).pipe(res);
 }
 
+// ---------- Persistence: snapshot state to disk, restore at start ----------
+// Survives process restarts on any host with a disk (or a mounted volume). Render's free plan has no
+// persistent disk, so a redeploy there still starts fresh; a production deployment would use a database.
+const STATE_FILE = process.env.STATE_FILE || path.join(__dirname, 'data', 'cache', 'state.json');
+function snapshot() {
+  return {
+    v: 1, at: now(),
+    shifts: [...shifts.values()], alerts, checkins, audit, outbox,
+    consent: [...consent], tokens: [...tokens].map(([t, u]) => [t, u.id]),
+    workers: Object.fromEntries(Object.values(users).filter((u) => u.role === 'worker').map((u) => [u.id, { heatDates: u.heatDates, personal: u.personal || null }])),
+    pushSubs: [...pushSubs], latestNotice: [...latestNotice], restTotals, noticesSent,
+    sites: Object.fromEntries(Object.values(sites).map((x) => [x.id, { replayDate: x.replayDate, calib: x.calib, middayBan: x.middayBan, readiness: x.readiness, coolSpot: x.coolSpot, audits: x.audits }])),
+  };
+}
+function restore() {
+  let j;
+  try { j = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')); } catch { return; }
+  if (!j || j.v !== 1 || now() - j.at > RETAIN_MS) return; // older than the retention window: start fresh
+  const t = now();
+  for (const sh of j.shifts || []) if (users[sh.workerId]) shifts.set(sh.workerId, { ...sh, lastHeartbeat: t, lastTick: t }); // grace after restart
+  alerts.push(...(j.alerts || []));
+  checkins.push(...(j.checkins || []));
+  audit.push(...(j.audit || []));
+  outbox.push(...(j.outbox || []));
+  for (const [k, v] of j.consent || []) consent.set(k, v);
+  for (const [tok, id] of j.tokens || []) if (users[id]) tokens.set(tok, users[id]);
+  for (const [id, w] of Object.entries(j.workers || {})) if (users[id]) Object.assign(users[id], w);
+  for (const [k, v] of j.pushSubs || []) pushSubs.set(k, v);
+  for (const [k, v] of j.latestNotice || []) latestNotice.set(k, v);
+  Object.assign(restTotals, j.restTotals || {});
+  noticesSent = j.noticesSent || 0;
+  for (const [id, v] of Object.entries(j.sites || {})) if (sites[id]) Object.assign(sites[id], v);
+  log('system', 'state_restored', `${shifts.size} shifts, ${alerts.length} alerts, saved ${Math.round((t - j.at) / 1000)} s ago`);
+}
+let lastSaved = '';
+function save(sync = false) {
+  const json = JSON.stringify(snapshot());
+  if (json === lastSaved) return;
+  lastSaved = json;
+  const tmp = `${STATE_FILE}.tmp`;
+  try {
+    fs.mkdirSync(path.dirname(STATE_FILE), { recursive: true });
+    if (sync) { fs.writeFileSync(tmp, json); fs.renameSync(tmp, STATE_FILE); } else fs.writeFile(tmp, json, (e) => { if (!e) fs.rename(tmp, STATE_FILE, () => {}); });
+  } catch (e) { console.error('[save]', e.message); }
+}
+restore();
+setInterval(() => save(), 10000);
+for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { save(true); process.exit(0); });
+
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   if (!url.pathname.startsWith('/api/')) return serveStatic(req, res, url);
