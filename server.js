@@ -88,6 +88,15 @@ function restInfo(sh) {
   return { phase: 'rest', endsAt: cycleStart + cyc, acked: sh.restAckCycle === ci, full: sh.workMin === 0 };
 }
 
+// The worker confirmed this cycle's rest break (in the app, by QR, from a notification, or by the foreman).
+function ackRest(sh) {
+  const ci = Math.floor((Date.now() - sh.startedAt) / (60 * T.checkinScale * 1000));
+  if (restInfo(sh).phase !== 'rest' || sh.restAckCycle === ci) return;
+  if (sh.restDueCycle !== ci) { sh.restDueCycle = ci; sh.restsDue++; }
+  sh.restAckCycle = ci;
+  sh.restsTaken++;
+}
+
 const now = () => Date.now();
 const id = () => crypto.randomBytes(6).toString('hex');
 const pad = (n) => String(n).padStart(2, '0');
@@ -162,7 +171,10 @@ async function workerView(sh) {
   sh.margin0 = current.margin - current.personal; // margin before personal tightening, for learning
   if (sh.capUsed) current = { ...current, band: 'red', workMin: 0, restMin: 60, checkinMin: Heat.CHECKIN_MIN.red, capUsed: true };
   sh.band = current.band;
-  sh.checkinMin = current.checkinMin;
+  // Hourly check-ins; every 30 min for workers at higher risk (new or returning, a tightened personal
+  // limit, "very hard" last time, or today's safe heat time used up).
+  const atRisk = sh.capUsed || (sh.acc && sh.acc.kind !== 'acclimatised') || current.personal > 0 || sh.lastExertion === 'veryhard';
+  sh.checkinMin = current.checkinMin ? (atRisk ? Heat.CHECKIN_AT_RISK : current.checkinMin) : null;
   sh.workMin = current.workMin;
   return { site, sn, plan, current, rise: Heat.nextRise(plan, sn.idx) };
 }
@@ -182,7 +194,7 @@ const latestNotice = new Map(); // workerId -> what the service worker shows
 let noticesSent = 0;
 function notify(workerId, body, tag, urgent = false) {
   const w = users[workerId];
-  if (!w || w.channel === 'sms') return; // basic phones get their own SMS flow
+  if (!w || w.channel === 'sms' || w.channel === 'crew') return; // basic phones: SMS flow; no phone: the foreman
   // Check-ins carry an "I'm OK" button, so a worker can answer from the lock screen.
   latestNotice.set(workerId, { title: 'HeatMitra', body, tag, urgent, at: now(), ok: tag === 'checkin' ? tr(w.lang, 'ok') : undefined });
   const sh = shifts.get(workerId);
@@ -244,10 +256,8 @@ function openAlert(sh, reason, stage, extra = {}) {
     openedAt: now(), stageAt: now(), firstHumanAt: null, history: [{ stage, at: now(), by: 'system', note: reason }],
   };
   alerts.push(a);
-  if (reason === 'checkin_due' || (reason === 'no_signal' && stage === 'worker')) {
-    const LW = users[sh.workerId].lang;
-    notify(sh.workerId, `${tr(LW, 'areyouok')} ${tr(LW, 'tapok')}`, 'checkin', true);
-  }
+  if (extra.rest) a.rest = true;
+  if (reason === 'checkin_due' || (reason === 'no_signal' && stage === 'worker')) notify(sh.workerId, promptText(sh.workerId, a), 'checkin', true);
   if (reason === 'no_signal' && stage === 'buddy') {
     const bid = users[sh.workerId].buddy;
     notify(bid, `${tr(users[bid].lang, 'buddyTitle', { name: users[sh.workerId].name })}. ${tr(users[bid].lang, 'buddyBody')}`, 'buddy', true);
@@ -258,6 +268,15 @@ function openAlert(sh, reason, stage, extra = {}) {
   }
   log('system', 'alert_opened', `${a.id} ${users[sh.workerId].name} ${reason} -> ${stage}`);
   return a;
+}
+
+// Workers with no phone are checked by the foreman, so their check-ins start with the supervisor.
+const checkinStage = (sh) => (users[sh.workerId].channel === 'crew' ? 'supervisor' : 'worker');
+
+// A rest-break check-in says what to do; a plain one asks if they're OK.
+function promptText(workerId, a) {
+  const L = users[workerId].lang;
+  return a.rest ? `${tr(L, 'restNow')}. ${tr(L, 'rest')}.` : `${tr(L, 'areyouok')} ${tr(L, 'tapok')}`;
 }
 
 function advance(a, stage, by, note) {
@@ -286,7 +305,7 @@ function recordCheckin(sh, status, symptoms, by, exertion = null) {
   }
   const open = openAlertFor(sh.workerId);
   if (status === 'ok') {
-    if (open && open.stage !== 'medic') resolve(open, users[sh.workerId].name, 'worker confirmed OK');
+    if (open && open.stage !== 'medic') resolve(open, by || users[sh.workerId].name, /crew check/.test(by || '') ? 'foreman saw them: OK' : 'worker confirmed OK');
     // Perceived exertion (Tikuisis et al. 2002): "very hard" gets rest advice; twice in a row asks the supervisor to check.
     const twice = exertion === 'veryhard' && sh.lastExertion === 'veryhard';
     if (exertion) sh.lastExertion = exertion;
@@ -313,7 +332,8 @@ async function sweep() {
   const t = now();
   for (const sh of shifts.values()) {
     const isSms = users[sh.workerId].channel === 'sms';
-    if ((sh.simulated && !sh.silent) || isSms) sh.lastHeartbeat = t; // basic phones have no app heartbeat
+    const isCrew = users[sh.workerId].channel === 'crew'; // no phone: covered by the foreman's crew check
+    if ((sh.simulated && !sh.silent) || isSms || isCrew) sh.lastHeartbeat = t; // no app heartbeat
     let open = openAlertFor(sh.workerId);
     // A locked phone stops the app's heartbeat. If push alerts reach that phone and the app said it was
     // put away (or the worker answered a push), the pushed check-ins keep watching. Otherwise ask the
@@ -363,18 +383,28 @@ async function sweep() {
         sh.restAckCycle = ci; sh.restsTaken++;
         if (Math.random() < 0.75) { sh.verifiedCycle = ci; sh.restsVerified = (sh.restsVerified || 0) + 1; }
       }
-      if (!sh.simulated) notify(sh.workerId, `${tr(L, 'restNow')}. ${tr(L, 'rest')}.`, 'rest');
+      if (!sh.simulated) {
+        // The rest break is the check-in: one prompt that says what to do, answered by "I'm in the shade".
+        const dueSoon = sh.checkinMin && t - sh.lastCheckin > (sh.checkinMin * T.checkinScale * 1000) / 2;
+        if (dueSoon && !open) open = openAlert(sh, 'checkin_due', checkinStage(sh), { rest: true });
+        else notify(sh.workerId, `${tr(L, 'restNow')}. ${tr(L, 'rest')}.`, 'rest');
+      }
     }
     if (!sh.checkinMin) continue;
     const due = sh.lastCheckin + sh.checkinMin * T.checkinScale * 1000;
     if (t < due) continue;
     if (sh.simulated && !sh.silent) { recordCheckin(sh, 'ok', [], 'simulated'); continue; }
-    if (!open) openAlert(sh, 'checkin_due', 'worker');
+    if (!open) openAlert(sh, 'checkin_due', checkinStage(sh));
   }
   for (const a of alerts) {
     if (a.status !== 'open') continue;
     const el = (t - a.stageAt) / 1000;
-    if (a.stage === 'worker' && el > T.workerStage) {
+    if (a.stage === 'worker' && el > T.workerStage && !a.reminded) {
+      a.reminded = true; // one more buzz and voice prompt before involving anyone else
+      a.stageAt = t;
+      notify(a.workerId, promptText(a.workerId, a), 'checkin', true);
+      log('system', 'alert_reminder', `${a.id} ${users[a.workerId].name}: reminded once before escalating`);
+    } else if (a.stage === 'worker' && el > T.workerStage) {
       const sh = shifts.get(a.workerId);
       const b = sh && buddyFor(sh);
       if (b) {
@@ -413,7 +443,7 @@ function startShift(w, body = {}, simulated = false) {
 function alertPublic(a, withClinical) {
   const out = {
     emergencyAt: a.emergencyAt || null, coolingAt: a.coolingAt || null, ambulanceAt: a.ambulanceAt || null, cooledAt: a.cooledAt || null,
-    id: a.id, worker: users[a.workerId].name, workerId: a.workerId, reason: a.reason, stage: a.stage, status: a.status,
+    id: a.id, worker: users[a.workerId].name, workerId: a.workerId, reason: a.reason, stage: a.stage, status: a.status, rest: Boolean(a.rest),
     severity: a.severity, band: a.band, openedAt: a.openedAt, stageAt: a.stageAt, history: a.history,
   };
   if (withClinical) {
@@ -557,10 +587,10 @@ async function api(req, res, url) {
       site: { id: v.site.id, name: v.site.name, emergency: v.site.emergency, replayDate: v.site.replayDate },
       source: v.sn.fc.source, stale: v.sn.fc.stale, nowTime: v.sn.time,
       current: v.current, rise: v.rise, plan: v.plan,
-      nextCheckinAt: v.current.checkinMin ? sh.lastCheckin + v.current.checkinMin * T.checkinScale * 1000 : null,
+      nextCheckinAt: sh.checkinMin ? sh.lastCheckin + sh.checkinMin * T.checkinScale * 1000 : null,
       buddy: u.buddy ? { name: users[u.buddy].name } : null,
       buddyTask: (() => { const ba = u.buddy && openAlertFor(u.buddy); return ba && ba.stage === 'buddy' ? { id: ba.id, name: users[u.buddy].name } : null; })(),
-      alert: a ? { id: a.id, stage: a.stage, reason: a.reason, severity: a.severity } : null,
+      alert: a ? { id: a.id, stage: a.stage, reason: a.reason, severity: a.severity, rest: Boolean(a.rest), reminded: Boolean(a.reminded) } : null,
       rest: { ...restInfo(sh), verified: sh.verifiedCycle === Math.floor((now() - sh.startedAt) / (60 * T.checkinScale * 1000)) },
       water: { cups: sh.cups || 0, due: Math.floor(sh.cupsDue || 0) },
       acclim: { ...sh.acc, heatMin: Math.round(sh.heatMin || 0), capMin: Math.round((SHIFT_MIN * (sh.acc ? sh.acc.cap : 100)) / 100) },
@@ -605,7 +635,7 @@ async function api(req, res, url) {
     const code = String(b.code || '').replace(/\D/g, '').slice(0, 8);
     const st = (sites[sh.siteId].stations || []).find((x) => x.code === code);
     if (!st) return send(res, 404, { error: 'not a rest station on this site' });
-    sh.lastHeartbeat = now();
+    recordCheckin(sh, 'ok', [], `${u.name} (station QR)`); // scanning at the station shows they're fine
     const ci = Math.floor((now() - sh.startedAt) / (60 * T.checkinScale * 1000));
     const r = restInfo(sh);
     if (r.phase !== 'rest') return send(res, 200, { verified: false, station: st.name });
@@ -647,13 +677,8 @@ async function api(req, res, url) {
     need(u, 'worker');
     const sh = shifts.get(u.id);
     if (!sh) return send(res, 409, { error: 'no active shift' });
-    const ci = Math.floor((now() - sh.startedAt) / (60 * T.checkinScale * 1000));
-    if (restInfo(sh).phase === 'rest' && sh.restAckCycle !== ci) {
-      if (sh.restDueCycle !== ci) { sh.restDueCycle = ci; sh.restsDue++; }
-      sh.restAckCycle = ci;
-      sh.restsTaken++;
-    }
-    sh.lastHeartbeat = now();
+    ackRest(sh);
+    recordCheckin(sh, 'ok', [], u.name); // "I'm in the shade" also answers the check-in
     return send(res, 200, restInfo(sh));
   }
   // Wearable strain: the phone computes PSI from heart rate and only reports it when it is high.
@@ -693,12 +718,28 @@ async function api(req, res, url) {
         acclim: s.acc && s.acc.kind !== 'acclimatised' ? { kind: s.acc.kind, day: s.acc.day, of: s.acc.of } : null,
         heatPct: s.acc && s.acc.cap < 100 ? Math.min(100, Math.round(((s.heatMin || 0) / ((SHIFT_MIN * s.acc.cap) / 100)) * 100)) : null,
         lastCheckinSec: Math.round((t - s.lastCheckin) / 1000), signal: t - s.lastHeartbeat <= T.heartbeatTimeout * 1000 ? 'ok' : s.inPocket && (pushSubs.get(s.workerId) || []).length ? 'push' : 'lost',
-        alert: a ? { id: a.id, stage: a.stage, reason: a.reason, severity: a.severity } : null,
+        alert: a ? { id: a.id, stage: a.stage, reason: a.reason, severity: a.severity, rest: Boolean(a.rest), reminded: Boolean(a.reminded) } : null,
       };
     });
     const counts = { green: 0, yellow: 0, orange: 0, red: 0 };
     list.forEach((w) => { if (w.band) counts[w.band]++; });
     return send(res, 200, { crew: list, counts, metrics: metrics() });
+  }
+  // Foreman's crew check: one tap after walking the crew counts as each ticked worker's check-in (and rest).
+  if (p === '/api/crew/check' && m === 'POST') {
+    need(u, 'supervisor');
+    const b = await body(req);
+    const siteId = b.siteId || u.siteId;
+    let n = 0;
+    for (const wid of Array.isArray(b.workerIds) ? b.workerIds.slice(0, 500) : []) {
+      const sh = shifts.get(wid);
+      if (!sh || sh.siteId !== siteId) continue;
+      if (b.rest) ackRest(sh);
+      recordCheckin(sh, 'ok', [], `${u.name} (crew check)`);
+      n++;
+    }
+    log(u.name, 'crew_check', `${n} worker(s) ${b.rest ? 'resting in the shade' : 'seen and OK'}`);
+    return send(res, 200, { checked: n });
   }
   if (p === '/api/alerts' && m === 'GET') {
     need(u, 'supervisor', 'medic');
@@ -835,6 +876,7 @@ async function api(req, res, url) {
     const sh = owner && shifts.get(owner);
     if (!sh) return send(res, 404, { error: 'no active shift' });
     sh.inPocket = true; // they answered with the app closed: keep using push until they open it again
+    ackRest(sh);
     return send(res, 200, recordCheckin(sh, 'ok', [], `${users[owner].name} (notification)`));
   }
   if (p === '/api/site/rule' && m === 'POST') {

@@ -18,7 +18,10 @@
   const REL = { a: 56.7, b: 11.5 };
   const RAL = { a: 59.9, b: 14.1 };
   const BANDS = ['green', 'yellow', 'orange', 'red'];
-  const CHECKIN_MIN = { green: null, yellow: 60, orange: 30, red: 20 };
+  // One check-in an hour, at the start of the rest break, whenever there is heat risk. Fewer, meaningful
+  // prompts get answered; constant ones get ignored (alarm fatigue). Workers at higher risk: every 30 min.
+  const CHECKIN_MIN = { green: null, yellow: 60, orange: 60, red: 60 };
+  const CHECKIN_AT_RISK = 30;
   const RED_FLAGS = ['confused', 'fainted', 'hotdry', 'vomit'];
   const SYMPTOMS = ['headache', 'dizzy', 'cramps', 'nausea', 'thirst', 'heavysweat', 'confused', 'fainted', 'hotdry', 'vomit'];
   const ACCLIMATISED_DAYS = 7;
@@ -241,7 +244,7 @@
 
   return {
     coreTempStep, psi, psiBand, RULES, airAssess, acclimPlan, personalUpdate, personalOffset, complianceScore,
-    WORKLOAD, CLOTHING, BANDS, CHECKIN_MIN, RED_FLAGS, SYMPTOMS, ACCLIMATISED_DAYS,
+    WORKLOAD, CLOTHING, BANDS, CHECKIN_MIN, CHECKIN_AT_RISK, RED_FLAGS, SYMPTOMS, ACCLIMATISED_DAYS,
     wetBulb, wbgt, limit, workFraction, inMiddayBan, assess, assessDay, nextRise, bestWindow,
   };
 });

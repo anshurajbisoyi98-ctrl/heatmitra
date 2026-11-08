@@ -248,31 +248,18 @@
   }
 
   // Work/rest cycle from the plan: tells the worker when to rest and lets them confirm it.
-  function restHtml(me) {
-    const r = me.rest;
-    if (!r || !r.endsAt) return '';
-    if (r.phase === 'rest') {
-      if (!r.acked && W.restSaid !== r.endsAt) {
-        W.restSaid = r.endsAt;
-        say(t('restNow'));
-        if (navigator.vibrate) navigator.vibrate([300, 150, 300]);
-      }
-      return `<div class="card rest-now"><div class="row" style="justify-content:space-between"><b>⏸ ${t('restNow')}</b><span class="timer" id="restCd" dir="ltr"></span></div>
-        ${r.acked ? `<div><b>${t('resting')}</b></div>` : `<button class="btn big" data-w="rest" style="margin-top:8px">🌴 ${t('restBtn')}</button>`}
-        ${r.verified ? `<div class="small" style="color:var(--green)"><b>📍 ✓</b></div>` : `<button class="btn" data-w="scan" style="width:100%;margin-top:8px">📍 ${t('scanStation')}</button>`}</div>`;
-    }
-    return `<div class="card row" style="justify-content:space-between"><span>⏸ ${t('nextRest')}</span><span class="timer" id="restCd" dir="ltr"></span></div>`;
-  }
-
   function drawShiftForm(me) {
     const u = S.user;
     const opt = (keys, sel) => keys.map((k) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${t(k)}</option>`).join('');
+    // The supervisor assigns task and clothing; the worker only taps Start (and can change it if it's wrong).
     app.innerHTML = `<div class="worker" dir="${dir()}"><div class="card"><h2>${esc(u.name)}</h2>
-      <label class="field"><span>${t('task')}</span><select id="fWork">${opt(['light', 'moderate', 'heavy', 'veryheavy'], u.workload)}</select></label>
-      <label class="field"><span>${t('clothing')}</span><select id="fCloth">${opt(['standard', 'polyolefin', 'doublelayer', 'vapourbarrier'], u.clothing)}</select></label>
+      <p class="assigned">🛠 ${t('task')}: <b>${t(u.workload)}</b><br>👕 ${t('clothing')}: <b>${t(u.clothing)}</b></p>
+      <details class="change"><summary>${t('change')}</summary>
+        <label class="field"><span>${t('task')}</span><select id="fWork">${opt(['light', 'moderate', 'heavy', 'veryheavy'], u.workload)}</select></label>
+        <label class="field"><span>${t('clothing')}</span><select id="fCloth">${opt(['standard', 'polyolefin', 'doublelayer', 'vapourbarrier'], u.clothing)}</select></label></details>
+      <button class="btn big primary" id="fStart">${t('startShift')}</button>
       <label class="check"><input type="checkbox" id="fConsent" ${me.consent && me.consent.symptoms ? 'checked' : ''} /><span>${t('consent')}</span></label>
-      <p class="muted small">${t('privacy')}</p>
-      <button class="btn big primary" id="fStart">${t('startShift')}</button></div></div>`;
+      <p class="muted small">${t('privacy')}</p></div></div>`;
     $('#fStart').onclick = async () => {
       await api('/api/consent', { method: 'POST', body: { symptoms: $('#fConsent').checked } });
       await api('/api/shift/start', { method: 'POST', body: { workload: $('#fWork').value, clothing: $('#fCloth').value } });
@@ -298,7 +285,18 @@
     const replay = me.site && me.site.replayDate ? `<span class="tag replay">replay ${esc(me.site.replayDate)}</span>` : '';
     const stale = me.stale ? '<span class="tag stale">saved plan</span>' : '';
     const medic = me.alert && me.alert.stage === 'medic';
-    app.innerHTML = `<div class="worker" dir="${dir()}">
+    const r = me.rest || {};
+    const air = c.air || {};
+    const a = me.acclim;
+    if (r.phase === 'rest' && !r.acked && W.restSaid !== r.endsAt) { // rest break starts: speak and buzz once
+      W.restSaid = r.endsAt;
+      if (!(me.alert && me.alert.rest)) say(t('restNow')); // the rest prompt speaks for itself
+      if (navigator.vibrate) navigator.vibrate([300, 150, 300]);
+    }
+    const pushTop = me.push && !me.push.subscribed && !(window.Notification && Notification.permission === 'denied');
+    const acclimLine = a && a.kind !== 'acclimatised' && a.cap < 100 ? `<div class="notice info">${a.kind === 'returning' ? t('returning', { a: a.awayDays, d: a.day, m: a.capMin }) : t('newWorker', { d: a.day, m: a.capMin })}</div>` : '';
+    // Simple by default: what to do now, rest when it's time, two big buttons. Everything else is under "More".
+    app.innerHTML = `<div class="worker simple" dir="${dir()}">
       ${W.offline ? `<div class="notice off">${t('offline')}</div>` : ''}
       ${medic ? `<div class="notice rise"><b>${t('emTitle')}</b></div>` : ''}
       <div class="band b-${b}">
@@ -307,34 +305,42 @@
         ${c.middayBan ? `<div class="act"><b>${t('ban', { start: c.banStart, end: c.banEnd })}</b></div>` : ''}
         ${c.ruleStop ? `<div class="act"><b>${t('ruleStop', { w: c.wbgt, lim: c.ruleLimit })}</b></div>` : ''}
         ${c.capUsed ? `<div class="act"><b>${t('capUsed')}</b></div>` : ''}
-        <div class="meter" dir="ltr" aria-hidden="true"><span style="left:${Math.max(0, Math.min(100, ((c.wbgtEff - c.limit + 6) / 12) * 100))}%"></span></div>
-        <div class="meta" dir="ltr">WBGT ≈ ${c.wbgtEff}°C · limit ${c.limit}°C · ${esc((c.time || '').slice(11))} ${replay} ${stale}</div>
+        ${c.restMin ? `<div class="hour">${t('plan')}: <b>${c.workMin}</b> ${t('work')} · <b>${c.restMin}</b> ${t('rest')} <span class="small">(${t('min')})</span></div>` : ''}
       </div>
-      <div class="card"><h2>${t('plan')}</h2><div class="split">
-        <div class="box"><div class="num">${c.workMin}</div>${t('work')} (${t('min')})</div>
-        <div class="box"><div class="num">${c.restMin}</div>${t('rest')} (${t('min')})</div></div></div>
-      ${restHtml(me)}
-      ${wearHtml()}
-      <div class="row" style="margin-bottom:12px"><button class="btn" data-w="hyd" style="flex:1">💧 ${t('hyd')}</button>
-        <button class="btn" data-w="cup" style="flex:1">🥤 ${t('cup')}</button></div>
-      ${me.water ? `<p class="small muted" style="margin-top:-6px">${t('cups', { n: me.water.cups })}${me.water.due ? ` / ${me.water.due}` : ''}</p>` : ''}
-      ${me.rise ? `<div class="notice rise">${t('rise', { time: me.rise.time.slice(11), band: t(`b_${me.rise.band}`) })}</div>` : ''}
-      ${hazardHtml(c, me)}
-      ${acclimHtml(me)}
-      ${me.personal && me.personal.offset > 0 ? `<div class="notice info">🧠 ${t('personal', { c: me.personal.offset })}</div>` : ''}
-      ${pushHtml(me)}
-      ${me.nextCheckinAt ? `<div class="card row" style="justify-content:space-between"><span>${t('next')}</span><span class="timer" id="cdown" dir="ltr"></span></div>` : ''}
+      ${r.phase === 'rest' ? `<div class="card rest-now"><div class="row" style="justify-content:space-between"><b>⏸ ${t('restNow')}</b><span class="timer" id="restCd" dir="ltr"></span></div>
+        ${r.acked ? `<div><b>${t('resting')}</b></div>` : `<button class="btn big ok" data-w="rest" style="margin-top:8px">🌴 ${t('restBtn')}</button>`}</div>` : ''}
+      ${air.dust === 'red' ? `<div class="notice rise">😷 ${t('dust_r')}</div>` : ''}
+      ${acclimLine}
+      ${pushTop ? pushHtml(me) : ''}
       <div class="row" style="flex-direction:column;gap:10px;align-items:stretch">
-        <button class="btn big ok" data-w="ok">${t('ok')}</button>
+        ${r.phase === 'rest' && !r.acked ? '' : `<button class="btn big ok" data-w="ok">${t('ok')}</button>`}
         <button class="btn big warn" data-w="unwell">${t('unwell')}</button></div>
       ${me.buddy ? `<p class="small">🤝 ${t('yourBuddy', { name: esc(me.buddy.name) })}</p>` : ''}
-      <p class="muted small">${t('privacy')} ${t('notMedical')}</p>
-      <label class="check small"><input type="checkbox" id="consentT" ${me.consent && me.consent.symptoms ? 'checked' : ''} /><span>${t('consent')}</span></label>
-      <button class="btn" data-w="end">${t('endShift')}</button></div>`;
+      <details class="more" id="more" ${W.more ? 'open' : ''}><summary>${t('more')}</summary>
+        <div class="meter" dir="ltr" aria-hidden="true"><span style="left:${Math.max(0, Math.min(100, ((c.wbgtEff - c.limit + 6) / 12) * 100))}%"></span></div>
+        <div class="meta small muted" dir="ltr">WBGT ≈ ${c.wbgtEff}°C · limit ${c.limit}°C · ${esc((c.time || '').slice(11))} ${replay} ${stale}</div>
+        ${r.phase === 'rest' && !r.verified ? `<button class="btn" data-w="scan" style="width:100%;margin:8px 0">📍 ${t('scanStation')}</button>` : r.verified ? '<div class="small" style="color:var(--green)"><b>📍 ✓</b></div>' : ''}
+        ${r.phase !== 'rest' && r.endsAt ? `<div class="card row" style="justify-content:space-between"><span>⏸ ${t('nextRest')}</span><span class="timer" id="restCd" dir="ltr"></span></div>` : ''}
+        <div class="row" style="margin-bottom:12px"><button class="btn" data-w="hyd" style="flex:1">💧 ${t('hyd')}</button>
+          <button class="btn" data-w="cup" style="flex:1">🥤 ${t('cup')}</button></div>
+        ${me.water ? `<p class="small muted" style="margin-top:-6px">${t('cups', { n: me.water.cups })}${me.water.due ? ` / ${me.water.due}` : ''}</p>` : ''}
+        ${me.rise ? `<div class="notice rise">${t('rise', { time: me.rise.time.slice(11), band: t(`b_${me.rise.band}`) })}</div>` : ''}
+        ${air.dust === 'red' ? '' : hazardHtml(c, me)}
+        ${acclimHtml(me)}
+        ${me.personal && me.personal.offset > 0 ? `<div class="notice info">🧠 ${t('personal', { c: me.personal.offset })}</div>` : ''}
+        ${pushTop ? '' : pushHtml(me)}
+        ${me.nextCheckinAt ? `<div class="card row" style="justify-content:space-between"><span>${t('next')}</span><span class="timer" id="cdown" dir="ltr"></span></div>` : ''}
+        ${wearHtml()}
+        <p class="muted small">${t('privacy')} ${t('notMedical')}</p>
+        <label class="check small"><input type="checkbox" id="consentT" ${me.consent && me.consent.symptoms ? 'checked' : ''} /><span>${t('consent')}</span></label>
+        <button class="btn" data-w="end">${t('endShift')}</button>
+      </details></div>`;
+    $('#more').ontoggle = (e) => { W.more = e.target.open; };
     $('#consentT').onchange = (e) => api('/api/consent', { method: 'POST', body: { symptoms: e.target.checked } }).catch(() => {});
     tick();
     const prompt = me.alert && me.alert.stage !== 'medic';
-    if (prompt && !W.modal) showPrompt(me.alert);
+    const pkey = prompt ? me.alert.id + (me.alert.reminded ? ':r' : '') : null;
+    if (prompt && (!W.modal || (W.modal === 'prompt' && W.spoken !== pkey))) showPrompt(me.alert);
     if (!prompt && W.modal === 'prompt') closeModal();
     if (!prompt && me.buddyTask && !W.modal) showBuddy(me.buddyTask);
     if (!me.buddyTask && W.modal === 'buddy') closeModal();
@@ -354,12 +360,21 @@
   }
 
   function showPrompt(a) {
+    const key = a.id + (a.reminded ? ':r' : '');
+    if (a.rest) {
+      modal('prompt', `<div class="modal alarm" dir="${dir()}"><h1>⏸ ${t('restNow')}</h1><p style="font-size:20px">${t('rest')}</p>
+        <div class="row" style="flex-direction:column;gap:10px;align-items:stretch">
+        <button class="btn big ok" data-w="rest">🌴 ${t('restBtn')}</button>
+        <button class="btn big warn" data-w="unwell">${t('unwell')}</button></div></div>`);
+      if (W.spoken !== key) { W.spoken = key; say(`${t('restNow')}. ${t('rest')}`); if (navigator.vibrate) navigator.vibrate([400, 200, 400, 200, 400]); }
+      return;
+    }
     modal('prompt', `<div class="modal alarm" dir="${dir()}"><h1>${t('areyouok')}</h1><p>${t('tapok')}</p>
       <div class="row" style="flex-direction:column;gap:10px;align-items:stretch">
       <button class="btn big ok" data-w="ok">${t('ok')}</button>
       <div><b>${t('exAsk')}</b><div class="row ex-row" style="margin-top:6px">${['easy', 'hard', 'veryhard'].map((e, i) => `<button class="btn ex-${e}" data-ex="${e}">${['🙂', '😓', '🥵'][i]} ${t(`ex_${e}`)}</button>`).join('')}</div></div>
       <button class="btn big warn" data-w="unwell">${t('unwell')}</button></div></div>`);
-    if (W.spoken !== a.id) { W.spoken = a.id; say(`${t('areyouok')} ${t('tapok')}`); if (navigator.vibrate) navigator.vibrate([400, 200, 400, 200, 400]); }
+    if (W.spoken !== key) { W.spoken = key; say(`${t('areyouok')} ${t('tapok')}`); if (navigator.vibrate) navigator.vibrate([400, 200, 400, 200, 400]); }
   }
 
   function openSymptoms() {
@@ -502,7 +517,11 @@
 
   // ---------------- supervisor + first-aider ----------------
   const V = { site: null, fc: null, crew: null, alerts: [], audit: [], bt: null, config: null, outcomes: {} };
-  document.addEventListener('change', (e) => { if (e.target.dataset && e.target.dataset.outcomeFor) V.outcomes[e.target.dataset.outcomeFor] = e.target.value; });
+  document.addEventListener('change', (e) => {
+    const d = e.target.dataset || {};
+    if (d.outcomeFor) V.outcomes[d.outcomeFor] = e.target.value;
+    if (d.crewchk) { if (e.target.checked) V.unseen.delete(d.crewchk); else V.unseen.add(d.crewchk); }
+  });
 
   async function renderConsole() {
     clearTimers();
@@ -510,16 +529,24 @@
     V.config = await api('/api/config');
     V.site = S.user.siteId;
     if (S.user.role === 'supervisor') {
-      app.innerHTML = `<div id="sv-head"></div><div class="grid">
-        <div class="card" style="grid-column:1/-1" id="sv-plan"></div>
-        <div class="card" style="grid-column:1/-1" id="sv-outlook"></div>
-        <div class="card" style="grid-column:1/-1" id="sv-map"></div>
-        <div class="card" id="sv-crew"></div><div class="card" id="sv-alerts"></div>
-        <div class="card" id="sv-sched"></div><div class="card" id="sv-logi"></div>
-        <div class="card" id="sv-breaks"></div><div class="card" id="sv-ready"></div><div class="card" id="sv-sms"></div>
-        <div class="card" style="grid-column:1/-1" id="sv-metrics"></div>
-        <div class="card" style="grid-column:1/-1" id="sv-cal"></div>
-        <div class="card" id="sv-audit"></div></div>`;
+      // Today: what a foreman needs on site. Insights: planning and analytics for HSE managers. Crew setup: roster.
+      V.tab = V.tab || local.get('hm_tab', 'today');
+      V.unseen = V.unseen || new Set();
+      app.innerHTML = `<div id="sv-head"></div>
+        <nav class="tabs" id="sv-tabs">${[['today', 'Today'], ['insights', 'Insights'], ['setup', 'Crew setup']].map(([k, l]) => `<button class="${V.tab === k ? 'on' : ''}" data-c="tab" data-tab-go="${k}">${l}</button>`).join('')}</nav>
+        <div class="grid" id="sv-grid" data-show="${V.tab}">
+        <div class="card" style="grid-column:1/-1" data-tab="today" id="sv-today"></div>
+        <div class="card" data-tab="today" id="sv-alerts"></div><div class="card" data-tab="today" id="sv-crew"></div>
+        <div class="card" data-tab="today" id="sv-ready"></div>
+        <div class="card" style="grid-column:1/-1" data-tab="insights" id="sv-plan"></div>
+        <div class="card" style="grid-column:1/-1" data-tab="insights" id="sv-outlook"></div>
+        <div class="card" style="grid-column:1/-1" data-tab="insights" id="sv-map"></div>
+        <div class="card" data-tab="insights" id="sv-sched"></div><div class="card" data-tab="insights" id="sv-logi"></div>
+        <div class="card" data-tab="insights" id="sv-breaks"></div><div class="card" data-tab="insights" id="sv-sms"></div>
+        <div class="card" style="grid-column:1/-1" data-tab="insights" id="sv-metrics"></div>
+        <div class="card" style="grid-column:1/-1" data-tab="insights" id="sv-cal"></div>
+        <div class="card" data-tab="insights" id="sv-audit"></div>
+        <div class="card" style="grid-column:1/-1" data-tab="setup" id="sv-setup"></div></div>`;
       V.map = null; V.mapSite = null; V.hmPlay = null;
       drawSmsShell();
       drawReadiness();
@@ -882,10 +909,35 @@
       const [crew, alerts, audit] = await Promise.all([api(`/api/crew?site=${V.site}`), api('/api/alerts'), api('/api/audit')]);
       V.crew = crew; V.alerts = alerts; V.audit = audit;
     } catch { return; }
-    if (S.user.role === 'supervisor') { drawCrew(); drawAlerts('#sv-alerts', 'supervisor'); drawMetrics(); loadSms(); loadBreaks(); }
+    if (S.user.role === 'supervisor') { drawToday(); drawCrew(); drawAlerts('#sv-alerts', 'supervisor'); drawMetrics(); loadSms(); loadBreaks(); }
     else drawAlerts('#md-alerts', 'medic');
     drawAudit();
   }
+
+  // Today: the day in four lines, and the foreman's crew check. One tap after walking the crew counts as each
+  // ticked worker's check-in (and rest break), so workers don't have to answer on their phones.
+  function drawToday() {
+    const el = $('#sv-today');
+    if (!el) return;
+    const crew = (V.crew && V.crew.crew) || [];
+    const lines = briefingLines('en').slice(0, 4).filter(Boolean);
+    const waiting = crew.filter((w) => w.alert && w.alert.reason === 'checkin_due').length;
+    el.innerHTML = `<div class="today-grid"><div><h2>Today</h2><ul class="today">${lines.map((l) => `<li>${esc(l)}</li>`).join('') || '<li class="muted">Loading the forecast…</li>'}</ul></div>
+      <div><h2>👷 Crew check${waiting ? ` <span class="tag">${waiting} waiting</span>` : ''}</h2>
+      <p class="small muted">Walk the crew, untick anyone you didn't see, then tap once. It counts as each person's check-in, so workers don't have to answer on their phones. Works for workers with no phone too.</p>
+      ${crew.length ? `<div class="crewchk">${crew.map((w) => `<label class="check"><input type="checkbox" data-crewchk="${w.workerId}" ${V.unseen.has(w.workerId) ? '' : 'checked'} /> ${esc(w.name)}${w.alert && w.alert.reason === 'checkin_due' ? ' <span class="tag">waiting</span>' : ''}</label>`).join('')}</div>
+        <div class="row"><button class="btn ok" data-c="crewRest">✓ All resting in the shade</button><button class="btn" data-c="crewOk">✓ Everyone seen, OK</button></div>
+        ${V.crewMsg ? `<p class="small" style="color:var(--green)">${esc(V.crewMsg)}</p>` : ''}`
+        : '<p class="muted small">No one on shift yet. Workers start their shift on their phone, or you start it for workers with no phone in Crew setup.</p>'}</div></div>`;
+  }
+  async function crewCheck(rest) {
+    const ids = ((V.crew && V.crew.crew) || []).map((w) => w.workerId).filter((id) => !V.unseen.has(id));
+    const r = await api('/api/crew/check', { method: 'POST', body: { siteId: V.site, workerIds: ids, rest } });
+    V.crewMsg = `${r.checked} checked ${rest ? '(resting in the shade)' : '(seen, OK)'} at ${new Date().toTimeString().slice(0, 5)}`;
+    return pollConsole();
+  }
+
+  function drawSetup() { const el = $('#sv-setup'); if (el && !el.innerHTML) el.innerHTML = '<h2>Crew setup</h2><p class="muted small">Loading…</p>'; }
 
   function drawCrew() {
     const c = V.crew; const el = $('#sv-crew');
@@ -953,8 +1005,16 @@
     const el = $(sel);
     if (!el) return;
     if (el.contains(document.activeElement) && document.activeElement.tagName === 'SELECT') return; // don't close an open picker
-    const list = role === 'medic' ? V.alerts.filter((a) => a.stage === 'medic' || a.status === 'resolved') : V.alerts;
-    el.innerHTML = `<h2>${role === 'medic' ? 'Cases for the first-aider' : 'Alerts'}</h2>${list.length ? list.map((a) => alertCard(a, role)).join('') : '<p class="muted small">No alerts.</p>'}`;
+    let list = role === 'medic' ? V.alerts.filter((a) => a.stage === 'medic' || a.status === 'resolved') : V.alerts;
+    // Routine missed check-ins: one list, not one alarm per person (fewer, clearer alerts for the supervisor).
+    let group = '';
+    if (role === 'supervisor') {
+      const routine = list.filter((a) => a.status === 'open' && a.reason === 'checkin_due' && a.severity === 'routine' && a.stage === 'supervisor');
+      list = list.filter((a) => !routine.includes(a) && (a.status === 'open' || a.severity !== 'routine'));
+      if (routine.length) group = `<div class="alert group"><b>Not answering their check-in (${routine.length})</b><div class="small muted">Walk over, or use Crew check above. Goes to the first-aider if no one confirms.</div>
+        ${routine.map((a) => `<div class="row" style="justify-content:space-between;margin-top:6px"><span>${esc(a.worker)}${a.rest ? ' · rest break' : ''} · ${Math.max(1, Math.round((Date.now() - a.openedAt) / 60000))} min</span><button class="btn sm ok" data-act="ack" data-id="${a.id}">Seen: OK</button></div>`).join('')}</div>`;
+    }
+    el.innerHTML = `<h2>${role === 'medic' ? 'Cases for the first-aider' : 'Alerts'}</h2>${group}${list.length ? list.map((a) => alertCard(a, role)).join('') : group ? '' : '<p class="muted small">No alerts.</p>'}`;
   }
 
   function drawMetrics() {
@@ -1216,7 +1276,7 @@
       if (b.dataset.act) { await api(`/api/alerts/${b.dataset.id}/${b.dataset.act}`, { method: 'POST', body: { outcome: V.outcomes[b.dataset.id] || '' } }); return pollConsole(); }
       if (w === 'push') return enablePush(true);
       if (c0 === 'saveReady') return saveReadiness();
-      if (w === 'rest') { try { const r = await api('/api/rest', { method: 'POST' }); if (W.me) W.me.rest = r; } catch {} return drawWorker(); }
+      if (w === 'rest') { if (W.modal === 'prompt') closeModal(); try { const r = await api('/api/rest', { method: 'POST' }); if (W.me) W.me.rest = r; } catch {} return pollWorker(); }
       if (c0 === 'brief') return openBriefing();
       if (b.dataset.bud) {
         await api(`/api/alerts/${b.dataset.id}/buddy`, { method: 'POST', body: { result: b.dataset.bud } }).catch(() => {});
@@ -1234,6 +1294,16 @@
       if (b.dataset.deltask) { V.tasks.splice(Number(b.dataset.deltask), 1); local.set('hm_tasks', V.tasks); return drawSched(); }
       const c = b.dataset.c;
       if (c === 'play') return togglePlay();
+      if (c === 'tab') {
+        V.tab = b.dataset.tabGo; local.set('hm_tab', V.tab);
+        $('#sv-grid').dataset.show = V.tab;
+        document.querySelectorAll('#sv-tabs button').forEach((x) => x.classList.toggle('on', x === b));
+        if (V.tab === 'insights' && V.map) setTimeout(() => V.map.invalidateSize(), 60); // map was hidden
+        if (V.tab === 'setup') drawSetup();
+        return;
+      }
+      if (c === 'crewRest') return crewCheck(true);
+      if (c === 'crewOk') return crewCheck(false);
       if (c === 'addTask') {
         const name = $('#tName').value.trim() || 'Task';
         const hours = Math.min(10, Math.max(0.5, Number($('#tHours').value) || 1));

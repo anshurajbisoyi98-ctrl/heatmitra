@@ -351,6 +351,14 @@ Object.assign(I18N.ne, { cfts: 'अहिले नै चिसो पार्
 Object.assign(I18N.tl, { cfts: 'Simulan nang palamigin: dalhin sa lilim, basain ng malamig na tubig at paypayan, yelo sa leeg at kili-kili. Parating na ang first-aider. Palamigin muna, saka dalhin sa ospital.' });
 
 // Break check: proof of rest at the shade station, and water.
+Object.assign(I18N.en, { more: 'More', change: 'Change' });
+Object.assign(I18N.hi, { more: 'और', change: 'बदलें' });
+Object.assign(I18N.ar, { more: 'المزيد', change: 'تغيير' });
+Object.assign(I18N.ur, { more: 'مزید', change: 'تبدیل کریں' });
+Object.assign(I18N.bn, { more: 'আরও', change: 'পরিবর্তন' });
+Object.assign(I18N.ml, { more: 'കൂടുതൽ', change: 'മാറ്റുക' });
+Object.assign(I18N.ne, { more: 'थप', change: 'बदल्नुहोस्' });
+Object.assign(I18N.tl, { more: 'Higit pa', change: 'Baguhin' });
 Object.assign(I18N.en, { scanStation: 'Scan the rest-station QR', stationCode: 'Or type the code under the QR', verified: 'Rest break confirmed at {station} ✓', visitOnly: 'Visit recorded at {station}. Your rest break starts soon.', badCode: 'That code is not a rest station on this site.', cup: '+1 cup of water', cups: 'Water today: {n} cups' });
 Object.assign(I18N.hi, { scanStation: 'आराम स्टेशन का QR स्कैन करें', stationCode: 'या QR के नीचे लिखा कोड डालें', verified: '{station} पर आराम ब्रेक की पुष्टि हुई ✓', visitOnly: '{station} पर आपकी हाज़िरी दर्ज हुई। आपका आराम ब्रेक जल्द शुरू होगा।', badCode: 'यह कोड इस साइट के किसी आराम स्टेशन का नहीं है।', cup: '+1 कप पानी', cups: 'आज पानी: {n} कप' });
 Object.assign(I18N.ar, { scanStation: 'امسح رمز QR لمحطة الراحة', stationCode: 'أو اكتب الرمز المكتوب تحت QR', verified: 'تم تأكيد استراحتك في {station} ✓', visitOnly: 'تم تسجيل زيارتك إلى {station}. تبدأ استراحتك قريبًا.', badCode: 'هذا الرمز لا يخص أي محطة راحة في هذا الموقع.', cup: '+1 كوب ماء', cups: 'الماء اليوم: {n} أكواب' });

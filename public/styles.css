@@ -149,3 +149,22 @@ select { max-width: 100%; }
 .poster { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; border: 2px dashed var(--line); border-radius: 14px; padding: 14px; margin: 12px 0; page-break-inside: avoid; }
 .poster .qr { flex: none; width: 150px; height: 150px; }
 .poster > div:last-child { flex: 1; min-width: 180px; }
+
+/* Simple worker mode */
+.worker .band .hour { margin-top: 10px; font-size: 18px; }
+.worker .assigned { font-size: 18px; line-height: 1.6; margin: 6px 0 10px; }
+.worker details.more { margin-top: 14px; border-top: 1px solid var(--line, #e2dcd2); padding-top: 6px; }
+.worker details.more > summary, .worker details.change > summary { cursor: pointer; padding: 10px 0; font-weight: 600; color: var(--muted, #6b6258); }
+.worker details.change { margin-bottom: 10px; }
+
+/* Supervisor tabs: Today / Insights / Crew setup */
+.tabs { display: flex; gap: 6px; margin: 0 0 12px; flex-wrap: wrap; }
+.tabs button { border: 1px solid var(--line, #e2dcd2); background: #fff; border-radius: 999px; padding: 8px 16px; font-weight: 600; cursor: pointer; }
+.tabs button.on { background: var(--accent, #b4401f); color: #fff; border-color: transparent; }
+#sv-grid[data-show="today"] > :not([data-tab="today"]),
+#sv-grid[data-show="insights"] > :not([data-tab="insights"]),
+#sv-grid[data-show="setup"] > :not([data-tab="setup"]) { display: none; }
+.today-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 18px; }
+ul.today { margin: 0; padding-left: 18px; line-height: 1.7; }
+.crewchk { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 6px 0 10px; }
+.alert.group { border-left: 4px solid var(--orange, #e08a1e); }
