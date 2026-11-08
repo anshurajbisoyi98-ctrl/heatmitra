@@ -80,11 +80,16 @@
     setTop(true);
     let users = [];
     try { users = await api('/api/users'); } catch {}
-    const g = (r) => users.filter((u) => u.role === r && u.channel !== 'sms')
+    const g = (r) => users.filter((u) => u.role === r && u.channel !== 'sms' && u.channel !== 'crew')
       .map((u) => `<button class="btn" data-login="${u.id}">${esc(u.name)} ${r === 'worker' ? `<span class="muted small">· ${I18N.langs[u.lang] || ''}</span>` : ''}</button>`).join('');
-    app.innerHTML = `
+    const joinCard = `<div class="card join" id="joinCard" dir="${dir()}"><h2>📱 ${t('joinTitle')}</h2>
+      <label class="field"><span>${t('phoneLbl')}</span><input id="jPhone" type="tel" inputmode="tel" autocomplete="tel" dir="ltr" placeholder="+971 50 000 0101" style="font-size:20px" /></label>
+      <div id="jCodeRow" hidden><label class="field"><span>${t('codeLbl')}</span><input id="jCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code" dir="ltr" style="font-size:22px;letter-spacing:4px" /></label></div>
+      <p id="jMsg" class="small"></p><button class="btn big primary" data-c="joinGo" id="jBtn">${t('sendCode')}</button></div>`;
+    if (!users.length) { app.innerHTML = joinCard; return; } // production: phone sign-in only
+    app.innerHTML = `${joinCard}
       <div class="card"><h2>Try the prototype</h2>
-        <p class="muted small">Demo sign-in with no passwords. A real deployment would use phone OTP for workers and company SSO for staff.
+        <p class="muted small">Demo sign-in with no passwords. Workers sign in for real with the phone number on their crew list (try +971 50 000 0101 above; the demo shows the code instead of texting it). Staff would use company SSO.
         Open a worker in one tab and the supervisor in another to watch the escalation ladder work. Sign-in is per tab.</p></div>
       <div class="roles">
         <div class="card who"><h2>Worker app</h2>${g('worker')}</div>
@@ -93,8 +98,32 @@
       </div>`;
   }
 
+  // Phone sign-in: number on the crew list -> one-time code by SMS -> signed in. No password, no app store.
+  async function joinStep() {
+    const phone = $('#jPhone').value.trim();
+    const msg = $('#jMsg');
+    const askCode = $('#jCodeRow').hidden;
+    try {
+      if (askCode) {
+        const r = await api('/api/join/start', { method: 'POST', body: { phone } });
+        $('#jCodeRow').hidden = false; $('#jBtn').textContent = t('signIn');
+        msg.textContent = t('codeSent') + (r.demoCode ? ` (demo: ${r.demoCode})` : '');
+        $('#jCode').focus();
+        return;
+      }
+      const r = await api('/api/join/verify', { method: 'POST', body: { phone, code: $('#jCode').value } });
+      return finishLogin(r);
+    } catch (e) {
+      msg.textContent = e.http === 404 ? t('notOnRoster') : e.http === 401 ? t('wrongCode') : e.http === 429 ? '…' : e.http === 400 ? t('sendCode') : t('offline');
+      if (e.http === 400) { $('#jCodeRow').hidden = true; $('#jBtn').textContent = t('sendCode'); }
+    }
+  }
+
   async function login(userId) {
     const r = await api('/api/login', { method: 'POST', body: { userId } });
+    return finishLogin(r);
+  }
+  function finishLogin(r) {
     S.token = r.token; S.user = r.user;
     tab.set('hm_token', r.token); tab.set('hm_user', r.user);
     if (r.user.role === 'worker' && r.user.lang) setLang(r.user.lang);
@@ -330,7 +359,10 @@
         ${me.personal && me.personal.offset > 0 ? `<div class="notice info">🧠 ${t('personal', { c: me.personal.offset })}</div>` : ''}
         ${pushTop ? '' : pushHtml(me)}
         ${me.nextCheckinAt ? `<div class="card row" style="justify-content:space-between"><span>${t('next')}</span><span class="timer" id="cdown" dir="ltr"></span></div>` : ''}
+        ${me.dose ? `<div class="notice info small">🌡 ${t('doseLine', { w: me.dose.week, s: me.dose.season })}</div>` : ''}
+        ${me.dose && me.dose.kidney ? `<div class="notice off">🩺 ${t('kidney')}</div>` : ''}
         ${wearHtml()}
+        <button class="btn" data-w="report" style="width:100%;margin:8px 0">📣 ${t('reportBtn')}</button>
         <p class="muted small">${t('privacy')} ${t('notMedical')}</p>
         <label class="check small"><input type="checkbox" id="consentT" ${me.consent && me.consent.symptoms ? 'checked' : ''} /><span>${t('consent')}</span></label>
         <button class="btn" data-w="end">${t('endShift')}</button>
@@ -375,6 +407,14 @@
       <div><b>${t('exAsk')}</b><div class="row ex-row" style="margin-top:6px">${['easy', 'hard', 'veryhard'].map((e, i) => `<button class="btn ex-${e}" data-ex="${e}">${['🙂', '😓', '🥵'][i]} ${t(`ex_${e}`)}</button>`).join('')}</div></div>
       <button class="btn big warn" data-w="unwell">${t('unwell')}</button></div></div>`);
     if (W.spoken !== key) { W.spoken = key; say(`${t('areyouok')} ${t('tapok')}`); if (navigator.vibrate) navigator.vibrate([400, 200, 400, 200, 400]); }
+  }
+
+  // Anonymous report: one tap, no name sent. Shown to managers only as counts.
+  const REPORT_KINDS = [['water', '🚰'], ['shade', '⛱'], ['ban', '🕛'], ['rest', '⏸'], ['cool', '🧊'], ['other', '⚠️']];
+  function openWorkerReport() {
+    modal('report', `<div class="modal" dir="${dir()}"><h1>📣 ${t('reportTitle')}</h1>
+      <div class="row" style="flex-direction:column;gap:8px;align-items:stretch">${REPORT_KINDS.map(([k, i]) => `<button class="btn big" data-rep="${k}">${i} ${t(`r_${k}`)}</button>`).join('')}</div>
+      <p><button class="btn" data-w="close">${t('cancel')}</button></p></div>`);
   }
 
   function openSymptoms() {
@@ -521,6 +561,7 @@
     const d = e.target.dataset || {};
     if (d.outcomeFor) V.outcomes[d.outcomeFor] = e.target.value;
     if (d.crewchk) { if (e.target.checked) V.unseen.delete(d.crewchk); else V.unseen.add(d.crewchk); }
+    if (d.ros) saveRoster(e.target);
   });
 
   async function renderConsole() {
@@ -545,9 +586,11 @@
         <div class="card" data-tab="insights" id="sv-breaks"></div><div class="card" data-tab="insights" id="sv-sms"></div>
         <div class="card" style="grid-column:1/-1" data-tab="insights" id="sv-metrics"></div>
         <div class="card" style="grid-column:1/-1" data-tab="insights" id="sv-cal"></div>
+        <div class="card" data-tab="insights" id="sv-reports"></div>
         <div class="card" data-tab="insights" id="sv-audit"></div>
         <div class="card" style="grid-column:1/-1" data-tab="setup" id="sv-setup"></div></div>`;
       V.map = null; V.mapSite = null; V.hmPlay = null;
+      if (V.tab === 'setup') drawSetup(); // reopened on the Crew setup tab
       drawSmsShell();
       drawReadiness();
       drawMapShell();
@@ -556,7 +599,8 @@
       loadCalendar();
       await loadForecast();
       fetch('/backtest.json').then((r) => (r.ok ? r.json() : null)).then((j) => { V.bt = j; drawMetrics(); }).catch(() => {});
-      S.timers.push(setInterval(() => loadForecast(), 60000));
+      loadReports();
+      S.timers.push(setInterval(() => { loadForecast(); loadReports(); }, 60000));
     } else {
       app.innerHTML = `<div class="grid"><div class="card" id="md-alerts"></div>
         <div class="card"><h2>Heat stroke: first aid</h2><ol class="small">
@@ -674,18 +718,30 @@
   }
 
   // ---------------- SMS fallback simulator (stands in for a basic phone) ----------------
+  // Basic phones: one panel that stands in for an SMS, WhatsApp or voice-call worker's own phone.
   async function drawSmsShell() {
     const el = $('#sv-sms');
+    if (!el) return;
     let users = [];
-    try { users = await api('/api/users'); } catch {}
-    const w = users.find((u) => u.channel === 'sms');
-    if (!w) { el.remove(); return; }
-    V.smsPhone = w.phone;
-    el.innerHTML = `<h2>📱 SMS fallback: ${esc(w.name)} (basic phone)</h2>
-      <p class="muted small">Demo: this panel stands in for ${esc(w.name)}'s own phone. Real deployments connect an SMS gateway to <code>/api/sms/inbound</code> (Twilio-style From/Body). Messages are in the worker's language (${esc(I18N.langs[w.lang] || w.lang)}).</p>
-      <div class="phone"><div id="smsThread" class="thread"></div>
-        <div class="row" style="margin-top:8px">${['START', '1', '2', 'STOP'].map((c) => `<button class="btn sm" data-sms="${c}">${c}</button>`).join('')}
-          <input id="smsText" class="btn sm" style="flex:1;min-width:60px" maxlength="160" placeholder="Reply…" aria-label="SMS reply" /><button class="btn sm primary" data-c="smsSend">Send</button></div></div>`;
+    try { users = (await api(`/api/admin/roster?site=${V.site}`)).workers; } catch {} // phone numbers: supervisors only
+    const list = users.filter((u) => ['sms', 'whatsapp', 'voice'].includes(u.channel) && u.phone);
+    if (!list.length) { el.innerHTML = '<h2>📱 Basic phones</h2><p class="muted small">No one is set to SMS, WhatsApp or voice calls. Change "Reached by" in Crew setup.</p>'; return; }
+    const w = list.find((u) => u.id === V.smsWid) || list[0];
+    V.smsWid = w.id; V.smsPhone = w.phone; V.smsChannel = w.channel;
+    const how = { sms: 'SMS', whatsapp: 'WhatsApp', voice: 'Voice calls' }[w.channel];
+    const lang = esc(I18N.langs[w.lang] || w.lang);
+    el.innerHTML = `<h2>📱 ${how}: ${esc(w.name)}</h2>
+      ${list.length > 1 ? `<select id="smsWho" class="btn sm" aria-label="Worker">${list.map((u) => `<option value="${u.id}" ${u.id === w.id ? 'selected' : ''}>${esc(u.name)} (${u.channel})</option>`).join('')}</select>` : ''}
+      <p class="muted small">${w.channel === 'voice'
+        ? `Demo: stands in for a phone call to ${esc(w.name)}, who can't read texts. Check-ins are spoken in ${lang} and answered on the keypad. Real deployments point a voice gateway (Twilio-style TwiML) at <code>/api/voice/twiml</code> and <code>/api/voice/gather</code>.`
+        : `Demo: stands in for ${esc(w.name)}'s own phone. Real deployments connect an SMS or WhatsApp gateway to <code>/api/sms/inbound</code> (Twilio-style From/Body; WhatsApp numbers arrive as <code>whatsapp:+…</code>). Messages are in ${lang}.`}</p>
+      <div class="phone ${w.channel}"><div id="smsThread" class="thread"></div>
+        <div class="row" style="margin-top:8px">${w.channel === 'voice'
+          ? ['1', '2'].map((d) => `<button class="btn sm" data-key="${d}">⌨ ${d}</button>`).join('') + '<span class="small muted">1 = OK, 2 = unwell. Start the shift in Crew setup.</span>'
+          : `${['START', '1', '2', 'STOP'].map((c) => `<button class="btn sm" data-sms="${c}">${c}</button>`).join('')}
+          <input id="smsText" class="btn sm" style="flex:1;min-width:60px" maxlength="160" placeholder="Reply…" aria-label="Reply" /><button class="btn sm primary" data-c="smsSend">Send</button>`}</div></div>`;
+    const who = $('#smsWho');
+    if (who) who.onchange = (e) => { V.smsWid = e.target.value; drawSmsShell(); };
     loadSms();
   }
   async function loadSms() {
@@ -695,11 +751,11 @@
     try { msgs = await api(`/api/sms/thread?phone=${encodeURIComponent(V.smsPhone)}`); } catch { return; }
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30;
     el.innerHTML = msgs.map((m) => `<div class="bubble ${m.dir}">${esc(m.text)}<span>${new Date(m.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span></div>`).join('')
-      || '<p class="muted small">No messages yet. Text START to begin the shift.</p>';
+      || `<p class="muted small">${V.smsChannel === 'voice' ? 'No calls yet. Calls come with each check-in once the shift has started.' : 'No messages yet. Text START to begin the shift.'}</p>`;
     if (atBottom) el.scrollTop = el.scrollHeight;
   }
   async function sendSmsDemo(text) {
-    await api('/api/sms/inbound', { method: 'POST', body: { From: V.smsPhone, Body: text } }).catch(() => {});
+    await api('/api/sms/inbound', { method: 'POST', body: { From: V.smsChannel === 'whatsapp' ? `whatsapp:${V.smsPhone}` : V.smsPhone, Body: text } }).catch(() => {});
     await loadSms();
     const el = $('#smsThread'); if (el) el.scrollTop = el.scrollHeight;
     pollConsole();
@@ -937,7 +993,80 @@
     return pollConsole();
   }
 
-  function drawSetup() { const el = $('#sv-setup'); if (el && !el.innerHTML) el.innerHTML = '<h2>Crew setup</h2><p class="muted small">Loading…</p>'; }
+  // Crew setup: join QR, CSV import, and the roster (task, clothing, buddy, how each worker is reached).
+  const TASK_LABEL = { light: 'Light', moderate: 'Moderate', heavy: 'Heavy', veryheavy: 'Very heavy' };
+  const CLOTH_LABEL = { standard: 'Normal clothes', polyolefin: 'Coverall', doublelayer: 'Double coverall', vapourbarrier: 'Sealed suit' };
+  const CHANNEL_LABEL = { app: 'App', sms: 'SMS', whatsapp: 'WhatsApp', voice: 'Voice call', crew: 'No phone (foreman)' };
+  async function drawSetup() {
+    const el = $('#sv-setup');
+    if (!el) return;
+    let r;
+    try { r = await api(`/api/admin/roster?site=${V.site}`); } catch { el.innerHTML = '<h2>Crew setup</h2><p class="muted">Could not load the crew list.</p>'; return; }
+    V.roster = r.workers;
+    const joinUrl = `${location.origin}/?join=1`;
+    const opt = (keys, sel, label) => keys.map((k) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${esc(label(k))}</option>`).join('');
+    const buddyOpts = (w) => `<option value="">-</option>${V.roster.filter((x) => x.id !== w.id).map((x) => `<option value="${x.id}" ${x.id === w.buddy ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}`;
+    el.innerHTML = `<h2>Crew setup</h2>
+      <div class="setup-grid">
+        <div><h3>1. Workers join with their phone</h3>
+          <p class="small muted">Put this QR at the gate or in the rest cabin. Workers scan it, type their phone number and get a one-time code by SMS. No app store, no password, and only numbers on your crew list can sign in.</p>
+          <div class="row" style="align-items:center;gap:14px"><div id="joinQr" class="qr"></div><div><code class="small">${esc(joinUrl)}</code><br><button class="btn sm" data-c="joinPoster" style="margin-top:8px">🖨 Join poster</button></div></div></div>
+        <div><h3>2. Import your crew</h3>
+          <p class="small muted">Paste from Excel or your HR list, one worker per line: <code>name, phone, language, task, clothing, buddy</code>. Leave the phone empty for workers with no phone; you check them in with Crew check. Importing the same phone again updates that worker.</p>
+          <textarea id="csvIn" rows="4" style="width:100%" placeholder="Sunil Tamang, +971501234567, Nepali, heavy, standard, Bikash Thapa"></textarea>
+          <div class="row" style="align-items:center"><button class="btn primary" data-c="csvImport">Import</button><span id="csvMsg" class="small"></span></div></div>
+      </div>
+      <h3>3. Your crew (${V.roster.length}) <span id="rosMsg" class="small muted"></span></h3>
+      <p class="small muted">Task and clothing set here are what each worker sees when they start a shift, so they don't have to choose. Changes save right away.</p>
+      <div class="table-wrap"><table class="list roster"><tr><th>Name</th><th>Phone</th><th>Language</th><th>Task</th><th>Clothing</th><th>Buddy</th><th>Reached by</th><th>Shift</th></tr>
+      ${V.roster.map((w) => `<tr data-wid="${w.id}"><td>${esc(w.name)}</td><td dir="ltr" class="small">${esc(w.phone || '-')}</td>
+        <td><select class="btn sm" data-ros="lang">${opt(r.langs, w.lang, (k) => I18N.langs[k] || k)}</select></td>
+        <td><select class="btn sm" data-ros="workload">${opt(Object.keys(TASK_LABEL), w.workload, (k) => TASK_LABEL[k])}</select></td>
+        <td><select class="btn sm" data-ros="clothing">${opt(Object.keys(CLOTH_LABEL), w.clothing, (k) => CLOTH_LABEL[k])}</select></td>
+        <td><select class="btn sm" data-ros="buddy">${buddyOpts(w)}</select></td>
+        <td><select class="btn sm" data-ros="channel">${opt(Object.keys(CHANNEL_LABEL), w.channel, (k) => CHANNEL_LABEL[k])}</select></td>
+        <td>${w.onShift ? `On shift${w.channel !== 'app' ? ` <button class="btn sm" data-c="fshift" data-on="0" data-id="${w.id}">End</button>` : ''}` : w.channel !== 'app' ? `<button class="btn sm" data-c="fshift" data-on="1" data-id="${w.id}">Start shift</button>` : '<span class="muted small">on their phone</span>'}</td></tr>`).join('')}
+      </table></div>`;
+    if (window.QRCode) new QRCode($('#joinQr'), { text: joinUrl, width: 120, height: 120, correctLevel: QRCode.CorrectLevel.M });
+  }
+  async function saveRoster(sel) {
+    const row = sel.closest('tr');
+    const msg = $('#rosMsg');
+    try {
+      await api('/api/admin/worker', { method: 'POST', body: { siteId: V.site, id: row.dataset.wid, [sel.dataset.ros]: sel.value } });
+      if (msg) msg.textContent = 'Saved ✓';
+      if (sel.dataset.ros === 'buddy' || sel.dataset.ros === 'channel') drawSetup();
+      if (sel.dataset.ros === 'channel') drawSmsShell();
+    } catch (e) { if (msg) msg.textContent = `Not saved: ${e.message}`; drawSetup(); }
+  }
+  async function importCsv() {
+    const r = await api('/api/admin/import', { method: 'POST', body: { siteId: V.site, csv: $('#csvIn').value } });
+    await drawSetup();
+    $('#csvMsg').textContent = ` Added ${r.added}, updated ${r.updated}${r.errors.length ? ` · ${r.errors.slice(0, 3).join('; ')}` : ''}`;
+  }
+  function openJoinPoster() {
+    const s = site();
+    const lines = ['en', 'hi', 'ar', 'ur', 'bn', 'ne', 'ml', 'tl'].map((l) => I18N[l].joinTitle);
+    modal('posters', `<div class="modal brief"><div class="row noprint" style="justify-content:space-between"><b>Join poster</b>
+        <span class="row"><button class="btn sm" data-c="brPrint">🖨 Print</button><button class="btn sm" data-w="close">✕</button></span></div>
+      <div class="poster"><div class="qr" data-qr="${location.origin}/?join=1"></div>
+        <div><h2 style="margin:0 0 6px">HeatMitra · ${esc(s.name)}</h2>${lines.map((l) => `<div>📱 ${esc(l)}</div>`).join('')}
+          <div class="muted small">Heat alerts for this site. Free. Your supervisor never sees your health information.</div></div></div></div>`);
+    overlay.querySelectorAll('[data-qr]').forEach((d) => { if (window.QRCode) new QRCode(d, { text: d.dataset.qr, width: 170, height: 170, correctLevel: QRCode.CorrectLevel.M }); });
+  }
+
+  const REPORT_LABEL = { water: 'No drinking water', shade: 'No shade to rest', ban: 'Made to work in the midday ban', rest: 'Rest break not allowed', cool: 'No first aid or cooling', other: 'Something else unsafe' };
+  async function loadReports() {
+    const el = $('#sv-reports');
+    if (!el) return;
+    let r; try { r = await api(`/api/reports?site=${V.site}`); } catch { return; }
+    const kidney = V.crew && V.crew.metrics ? V.crew.metrics.kidneyCheckAdvised : null;
+    el.innerHTML = `<h2>📣 Worker reports (anonymous)</h2>
+      <table class="list"><tr><th>Problem</th><th>Last 7 days</th><th>Today</th></tr>
+      ${r.kinds.map((k) => `<tr><td>${REPORT_LABEL[k.kind]}</td><td>${k.week}</td><td>${k.today ? '<b style="color:var(--red)">reported</b>' : '-'}</td></tr>`).join('')}</table>
+      <p class="muted small">No names and no times are stored, and counts under 5 show as "&lt;5", so no one can be singled out. In a real deployment these go to the company's HSE team or the labour inspector, not only the site supervisor.</p>
+      ${kidney != null ? `<p class="small">🩺 Workers past ${100} h in high heat this season (kidney check advised): <b>${kidney > 0 && kidney < 5 ? '&lt;5' : kidney}</b>. Each worker sees their own hours privately.</p>` : ''}`;
+  }
 
   function drawCrew() {
     const c = V.crew; const el = $('#sv-crew');
@@ -1259,6 +1388,8 @@
       if (b.dataset.ex) return checkin('ok', [], b.dataset.ex);
       if (w === 'ok') return checkin('ok');
       if (w === 'unwell') return openSymptoms();
+      if (w === 'report') return openWorkerReport();
+      if (b.dataset.rep) { closeModal(); await api('/api/report', { method: 'POST', body: { kind: b.dataset.rep } }).catch(() => {}); return showNote(t('reportThanks')); }
       if (w === 'close') return closeModal();
       if (w === 'hyd') return openHydration();
       if (w === 'scan') return openScan();
@@ -1285,6 +1416,7 @@
         return pollWorker();
       }
       if (b.dataset.sms) return sendSmsDemo(b.dataset.sms);
+      if (b.dataset.key) { await api(`/api/voice/gather?w=${V.smsWid}`, { method: 'POST', body: { Digits: b.dataset.key } }).catch(() => {}); await loadSms(); return pollConsole(); }
       if (c0 === 'smsSend') { const v = $('#smsText').value.trim(); $('#smsText').value = ''; return v && sendSmsDemo(v); }
       if (c0 === 'report') return openReport();
       if (c0 === 'reportCsv') return downloadReport();
@@ -1302,6 +1434,10 @@
         if (V.tab === 'setup') drawSetup();
         return;
       }
+      if (c === 'joinGo') return joinStep();
+      if (c === 'csvImport') return importCsv();
+      if (c === 'joinPoster') return openJoinPoster();
+      if (c === 'fshift') { await api('/api/admin/shift', { method: 'POST', body: { workerId: b.dataset.id, on: b.dataset.on === '1' } }); await drawSetup(); return pollConsole(); }
       if (c === 'crewRest') return crewCheck(true);
       if (c === 'crewOk') return crewCheck(false);
       if (c === 'addTask') {

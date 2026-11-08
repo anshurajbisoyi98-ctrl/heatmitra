@@ -46,7 +46,67 @@ for (const u of Object.values(users)) {
   if (u.role !== 'worker') continue;
   const away = u.awayDays ?? 1;
   u.heatDates = Array.from({ length: u.daysOnSite || 0 }, (_, i) => new Date(Date.now() - (away + i) * 864e5).toISOString().slice(0, 10));
+  u.heatLog = Object.fromEntries(u.heatDates.map((d) => [d, 270])); // minutes in high heat per day (demo history)
 }
+// Cumulative heat dose: hours in high heat (orange or red) this week and this season, private to the worker.
+// Repeated heat and dehydration are linked to kidney injury in hot-climate workers (CKDnT), so past a
+// season threshold the worker is prompted to ask for a simple kidney check. The threshold is not validated.
+const KIDNEY_SEASON_H = 100;
+function doseFor(w, today) {
+  const sum = (days) => Object.entries(w.heatLog || {}).filter(([d]) => (Date.parse(today) - Date.parse(d)) / 864e5 < days).reduce((t, [, m]) => t + m, 0) / 60;
+  const season = Math.round(sum(120));
+  return { week: Math.round(sum(7)), season, kidney: season >= KIDNEY_SEASON_H };
+}
+// Anonymous worker reports: no name and no time of day are stored; counts under 5 are shown as "<5".
+const REPORT_KINDS = ['water', 'shade', 'ban', 'rest', 'cool', 'other'];
+const reports = []; // { siteId, kind, day }
+const reportSalt = crypto.randomBytes(16).toString('hex'); // dedupe key, memory only, never stored
+const reportSeen = new Set();
+// Crew roster: supervisors import and edit workers; phone number = sign-in identity (one-time code by SMS).
+const CHANNELS = ['app', 'sms', 'whatsapp', 'voice', 'crew'];
+const ROSTER_FIELDS = ['name', 'phone', 'lang', 'workload', 'clothing', 'buddy', 'channel', 'siteId', 'daysOnSite'];
+const normPhone = (p) => { const d = String(p || '').replace(/[^\d+]/g, '').replace(/(?!^)\+/g, ''); return d.replace(/\D/g, '').length >= 7 ? (d.startsWith('+') ? d : `+${d}`) : ''; };
+const byPhone = (ph) => ph && Object.values(users).find((x) => x.role === 'worker' && normPhone(x.phone) === ph);
+const LANG_NAMES = { english: 'en', hindi: 'hi', arabic: 'ar', urdu: 'ur', bengali: 'bn', bangla: 'bn', malayalam: 'ml', nepali: 'ne', tagalog: 'tl', filipino: 'tl' };
+function rosterRow(w) {
+  return { id: w.id, name: w.name, phone: w.phone || '', lang: w.lang, workload: w.workload, clothing: w.clothing, buddy: w.buddy || '', channel: w.channel || 'app', onShift: shifts.has(w.id), added: Boolean(w.added) };
+}
+function upsertWorker(siteId, b, by) {
+  let w = b.id ? users[b.id] : null;
+  if (b.id && (!w || w.role !== 'worker' || w.siteId !== siteId)) return { error: 'not a worker on this site' };
+  const name = String(b.name ?? (w ? w.name : '')).trim().slice(0, 40);
+  if (!name) return { error: 'name needed' };
+  if (b.phone !== undefined) {
+    const ph = normPhone(b.phone);
+    const clash = ph && byPhone(ph);
+    if (clash && (!w || clash.id !== w.id)) return { error: `${ph} is already ${clash.name}'s number` };
+  }
+  if (!w) {
+    w = { id: `w${id()}`, role: 'worker', siteId, daysOnSite: 0, heatDates: [], added: true, workload: 'moderate', clothing: 'standard', lang: 'en' };
+    users[w.id] = w;
+  }
+  w.name = name;
+  if (b.phone !== undefined) w.phone = normPhone(b.phone) || undefined;
+  const lang = String(b.lang || '').toLowerCase();
+  if (I18N[lang] && lang !== 'langs') w.lang = lang; else if (LANG_NAMES[lang]) w.lang = LANG_NAMES[lang];
+  const task = String(b.workload || '').toLowerCase().replace(/\s+/g, '');
+  if (Heat.WORKLOAD[task]) w.workload = task;
+  if (b.clothing && Heat.CLOTHING[b.clothing] != null) w.clothing = b.clothing;
+  if (b.channel && CHANNELS.includes(b.channel)) w.channel = b.channel === 'app' ? undefined : b.channel;
+  if (b.buddy !== undefined) {
+    const bud = users[b.buddy];
+    w.buddy = bud && bud.role === 'worker' && bud.siteId === siteId && bud.id !== w.id ? bud.id : undefined;
+    if (w.buddy && !users[w.buddy].buddy) users[w.buddy].buddy = w.id;
+  }
+  if (!w.phone && ['sms', 'whatsapp', 'voice'].includes(w.channel)) w.channel = 'crew'; // no number: the foreman covers them
+  log(by, 'roster_updated', w.name);
+  return { worker: rosterRow(w) };
+}
+const joinCodes = new Map(); // phone -> { code, workerId, exp, tries, sentAt }
+// How each worker is reached: the app, text (SMS or WhatsApp), automated voice calls, or no phone (the foreman).
+const isText = (w) => w && (w.channel === 'sms' || w.channel === 'whatsapp');
+const noApp = (w) => w && ['sms', 'whatsapp', 'voice', 'crew'].includes(w.channel);
+
 const tokens = new Map();
 const shifts = new Map(); // workerId -> shift
 const consent = new Map(); // workerId -> { symptoms: bool }
@@ -194,7 +254,8 @@ const latestNotice = new Map(); // workerId -> what the service worker shows
 let noticesSent = 0;
 function notify(workerId, body, tag, urgent = false) {
   const w = users[workerId];
-  if (!w || w.channel === 'sms' || w.channel === 'crew') return; // basic phones: SMS flow; no phone: the foreman
+  if (!w || isText(w) || w.channel === 'crew') return; // text: own SMS/WhatsApp flow; no phone: the foreman
+  if (w.channel === 'voice') { if (urgent) placeCall(workerId, body); return; } // can't read: an automated call
   // Check-ins carry an "I'm OK" button, so a worker can answer from the lock screen.
   latestNotice.set(workerId, { title: 'HeatMitra', body, tag, urgent, at: now(), ok: tag === 'checkin' ? tr(w.lang, 'ok') : undefined });
   const sh = shifts.get(workerId);
@@ -208,14 +269,14 @@ function notify(workerId, body, tag, urgent = false) {
         if (st === 404 || st === 410) pushSubs.set(workerId, (pushSubs.get(workerId) || []).filter((x) => x.endpoint !== s.endpoint));
       }).catch(() => {});
     }
-  } else if (w.phone) { noticesSent++; sendSms(workerId, `HeatMitra: ${body}`); }
+  } else if (w.phone && urgent) { noticesSent++; sendSms(workerId, `HeatMitra: ${body}`); } // no push: urgent ones by SMS
 }
 
 // The worker's buddy, if they are on shift, reachable and not in trouble themselves.
 function buddyFor(sh) {
   const bid = users[sh.workerId].buddy;
   const b = bid && shifts.get(bid);
-  if (!b || b.silent || users[bid].channel === 'sms') return null;
+  if (!b || b.silent || noApp(users[bid])) return null; // the buddy request needs the app
   if (now() - b.lastHeartbeat > T.heartbeatTimeout * 1000 || openAlertFor(bid)) return null;
   return b;
 }
@@ -225,10 +286,33 @@ const outbox = [];
 function sendSms(workerId, text) {
   const w = users[workerId];
   if (!w || !w.phone) return;
-  outbox.push({ phone: w.phone, text, at: now(), dir: 'out' });
+  const wa = w.channel === 'whatsapp';
+  outbox.push({ phone: w.phone, text, at: now(), dir: 'out', channel: wa ? 'whatsapp' : 'sms' });
   if (outbox.length > 300) outbox.shift();
-  if (process.env.SMS_WEBHOOK_URL) {
-    fetch(process.env.SMS_WEBHOOK_URL, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ to: w.phone, text }) }).catch(() => {});
+  if (process.env.SMS_WEBHOOK_URL) { // Twilio-style gateways send WhatsApp to "whatsapp:+number"
+    fetch(process.env.SMS_WEBHOOK_URL, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ to: wa ? `whatsapp:${w.phone}` : w.phone, text, channel: wa ? 'whatsapp' : 'sms' }) }).catch(() => {});
+  }
+}
+
+// Automated voice calls for workers who can't read texts: the prompt is spoken in their language and
+// answered on the keypad (1 = OK, 2 = unwell). TwiML is the de facto format for voice gateways.
+const VOICE_LANG = { en: 'en-GB', hi: 'hi-IN', ar: 'ar-AE', ur: 'ur-IN', bn: 'bn-IN', ml: 'ml-IN', ne: 'ne-NP', tl: 'fil-PH' };
+const xmlEsc = (x) => String(x).replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' })[c]);
+function twimlFor(w, text) {
+  const k = process.env.SMS_SECRET ? `&k=${encodeURIComponent(process.env.SMS_SECRET)}` : '';
+  const action = `${process.env.PUBLIC_URL || ''}/api/voice/gather?w=${w.id}${k}`;
+  const say = `<Say language="${VOICE_LANG[w.lang] || 'en-GB'}">${xmlEsc(text)}</Say>`;
+  return `<?xml version="1.0" encoding="UTF-8"?><Response><Gather numDigits="1" timeout="8" action="${xmlEsc(action)}" method="POST">${say}</Gather>${say}</Response>`;
+}
+function placeCall(workerId, body) {
+  const w = users[workerId];
+  if (!w || !w.phone) return;
+  const text = `${body.replace(tr(w.lang, 'tapok'), '').trim()} ${tr(w.lang, 'voicePress')}`; // spoken: no "tap the button"
+  noticesSent++;
+  outbox.push({ phone: w.phone, text: `📞 ${text}`, at: now(), dir: 'out', channel: 'voice' });
+  if (outbox.length > 300) outbox.shift();
+  if (process.env.VOICE_WEBHOOK_URL) {
+    fetch(process.env.VOICE_WEBHOOK_URL, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ to: w.phone, twiml: twimlFor(w, text) }) }).catch(() => {});
   }
 }
 
@@ -262,7 +346,7 @@ function openAlert(sh, reason, stage, extra = {}) {
     const bid = users[sh.workerId].buddy;
     notify(bid, `${tr(users[bid].lang, 'buddyTitle', { name: users[sh.workerId].name })}. ${tr(users[bid].lang, 'buddyBody')}`, 'buddy', true);
   }
-  if (reason === 'checkin_due' && users[sh.workerId].channel === 'sms') {
+  if (reason === 'checkin_due' && isText(users[sh.workerId])) {
     const L = users[sh.workerId].lang;
     sendSms(sh.workerId, `HeatMitra: ${tr(L, 'areyouok')} ${tr(L, 'smsReply')}`);
   }
@@ -331,9 +415,8 @@ function recordCheckin(sh, status, symptoms, by, exertion = null) {
 async function sweep() {
   const t = now();
   for (const sh of shifts.values()) {
-    const isSms = users[sh.workerId].channel === 'sms';
-    const isCrew = users[sh.workerId].channel === 'crew'; // no phone: covered by the foreman's crew check
-    if ((sh.simulated && !sh.silent) || isSms || isCrew) sh.lastHeartbeat = t; // no app heartbeat
+    const isSms = isText(users[sh.workerId]); // SMS or WhatsApp
+    if ((sh.simulated && !sh.silent) || noApp(users[sh.workerId])) sh.lastHeartbeat = t; // no app heartbeat
     let open = openAlertFor(sh.workerId);
     // A locked phone stops the app's heartbeat. If push alerts reach that phone and the app said it was
     // put away (or the worker answered a push), the pushed check-ins keep watching. Otherwise ask the
@@ -357,6 +440,10 @@ async function sweep() {
         notify(sh.workerId, tr(L, 'capUsed'), 'cap', true);
         await workerView(sh);
       }
+    }
+    if (!sh.simulated && (sh.band === 'orange' || sh.band === 'red')) { // heat dose for this worker, private
+      const w = users[sh.workerId]; const d = localParts(sites[sh.siteId].tz).date;
+      w.heatLog = w.heatLog || {}; w.heatLog[d] = (w.heatLog[d] || 0) + dtMin;
     }
     // Tell the worker's phone when risk rises (only rises: fewer, more meaningful alerts).
     // Water due in the heat (any band above green); simulated workers drink most of it.
@@ -474,6 +561,7 @@ function metrics() {
     checkins: checkins.length,
     personalisedWorkers: [...shifts.values()].filter((s) => Heat.personalOffset(users[s.workerId].personal) > 0).length,
     newOrReturning: [...shifts.values()].filter((s) => s.acc && s.acc.kind !== 'acclimatised').length,
+    kidneyCheckAdvised: Object.values(users).filter((w) => w.role === 'worker' && doseFor(w, localParts(sites[w.siteId].tz).date).kidney).length,
     pushSubscribed: [...pushSubs.values()].filter((l) => l.length).length,
     noticesSent,
     breakScore: (() => { const site = [...shifts.values()][0] ? sites[[...shifts.values()][0].siteId] : null; return site ? breakCheck(site).score : null; })(),
@@ -532,7 +620,36 @@ async function api(req, res, url) {
   if (m === 'GET' && p === '/api/config') return send(res, 200, { demo: DEMO, timing: T, sites: Object.values(sites).map((x) => ({ ...x, stations: (x.stations || []).map(({ id, name }) => ({ id, name })) })) });
   if (m === 'GET' && p === '/api/users') {
     if (!DEMO) return send(res, 404, { error: 'demo only' });
-    return send(res, 200, seed.users.map(({ id, role, name, lang, channel, phone }) => ({ id, role, name, lang, channel: channel || 'app', phone })));
+    if (!DEMO) return send(res, 200, []); // the name picker is demo-only; phone numbers are never listed here
+    return send(res, 200, Object.values(users).map(({ id, role, name, lang, channel }) => ({ id, role, name, lang, channel: channel || 'app' })));
+  }
+  // Workers sign in with the phone number on their crew list and a one-time code sent by SMS.
+  if (m === 'POST' && p === '/api/join/start') {
+    const b = await body(req);
+    const ph = normPhone(b.phone);
+    const w = byPhone(ph);
+    if (!w) return send(res, 404, { error: 'not_on_roster' });
+    const prev = joinCodes.get(ph);
+    if (prev && now() - prev.sentAt < 20000) return send(res, 429, { error: 'wait' });
+    const code = String(crypto.randomInt(0, 1e6)).padStart(6, '0');
+    joinCodes.set(ph, { code, workerId: w.id, exp: now() + 10 * 60e3, tries: 0, sentAt: now() });
+    sendSms(w.id, `HeatMitra: ${code}`);
+    log('system', 'join_code_sent', w.name);
+    return send(res, 200, { sent: true, ...(DEMO ? { demoCode: code } : {}) }); // demo: no SMS gateway, show the code
+  }
+  if (m === 'POST' && p === '/api/join/verify') {
+    const b = await body(req);
+    const ph = normPhone(b.phone);
+    const j = joinCodes.get(ph);
+    if (!j || now() > j.exp) return send(res, 400, { error: 'expired' });
+    if (++j.tries > 5) { joinCodes.delete(ph); return send(res, 429, { error: 'too_many' }); }
+    if (String(b.code || '').trim() !== j.code) return send(res, 401, { error: 'wrong_code' });
+    joinCodes.delete(ph);
+    const user = users[j.workerId];
+    const tok = crypto.randomBytes(16).toString('hex');
+    tokens.set(tok, user);
+    log(user.name, 'signed_in', 'phone code');
+    return send(res, 200, { token: tok, user });
   }
   if (m === 'POST' && p === '/api/login') {
     const b = await body(req);
@@ -596,6 +713,7 @@ async function api(req, res, url) {
       acclim: { ...sh.acc, heatMin: Math.round(sh.heatMin || 0), capMin: Math.round((SHIFT_MIN * (sh.acc ? sh.acc.cap : 100)) / 100) },
       personal: { offset: Heat.personalOffset(users[u.id].personal), n: users[u.id].personal ? users[u.id].personal.n : 0 },
       cooling: { spot: v.site.coolSpot || null, vests: Boolean(readyToday(v.site).vests) },
+      dose: doseFor(users[u.id], localParts(v.site.tz).date),
       push: { subscribed: (pushSubs.get(u.id) || []).length > 0 },
       serverTime: now(),
     });
@@ -645,6 +763,24 @@ async function api(req, res, url) {
     }
     if (sh.verifiedCycle !== ci) { sh.verifiedCycle = ci; sh.restsVerified = (sh.restsVerified || 0) + 1; }
     return send(res, 200, { verified: true, station: st.name });
+  }
+  // Anonymous report from a worker: kind and day only. One per kind per worker per day.
+  if (p === '/api/report' && m === 'POST') {
+    need(u, 'worker');
+    const b = await body(req);
+    if (!REPORT_KINDS.includes(b.kind)) return send(res, 400, { error: 'unknown kind' });
+    const day = localParts(sites[u.siteId].tz).date;
+    const key = crypto.createHash('sha256').update(`${reportSalt}:${u.id}:${b.kind}:${day}`).digest('hex');
+    if (!reportSeen.has(key)) { reportSeen.add(key); reports.push({ siteId: u.siteId, kind: b.kind, day }); }
+    return send(res, 200, { ok: true }); // deliberately not in the audit log: its timestamps could identify the sender
+  }
+  if (p === '/api/reports' && m === 'GET') {
+    need(u, 'supervisor');
+    const siteId = url.searchParams.get('site') || u.siteId;
+    const today = localParts(sites[siteId].tz).date;
+    const recent = reports.filter((r) => r.siteId === siteId && (Date.parse(today) - Date.parse(r.day)) / 864e5 < 7);
+    const shown = (n) => (n === 0 ? 0 : n < 5 ? '<5' : n);
+    return send(res, 200, { kinds: REPORT_KINDS.map((k) => { const l = recent.filter((r) => r.kind === k); return { kind: k, week: shown(l.length), today: l.some((r) => r.day === today) }; }) });
   }
   if (p === '/api/water' && m === 'POST') {
     need(u, 'worker');
@@ -725,6 +861,48 @@ async function api(req, res, url) {
     list.forEach((w) => { if (w.band) counts[w.band]++; });
     return send(res, 200, { crew: list, counts, metrics: metrics() });
   }
+  // Crew setup: roster list, add or edit one worker, CSV import, start or end a shift for workers with no phone.
+  if (p === '/api/admin/roster' && m === 'GET') {
+    need(u, 'supervisor');
+    const siteId = url.searchParams.get('site') || u.siteId;
+    return send(res, 200, { workers: Object.values(users).filter((w) => w.role === 'worker' && w.siteId === siteId).map(rosterRow), langs: Object.keys(I18N).filter((k) => k !== 'langs') });
+  }
+  if (p === '/api/admin/worker' && m === 'POST') {
+    need(u, 'supervisor');
+    const b = await body(req);
+    const r = upsertWorker(b.siteId || u.siteId, b, u.name);
+    return send(res, r.error ? 400 : 200, r);
+  }
+  if (p === '/api/admin/import' && m === 'POST') {
+    need(u, 'supervisor');
+    const b = await body(req);
+    const siteId = b.siteId || u.siteId;
+    const rows = String(b.csv || '').split(/\r?\n/).map((l) => l.split(',').map((x) => x.trim())).filter((r) => r[0]);
+    if (rows.length && /^name$/i.test(rows[0][0])) rows.shift(); // header
+    const out = { added: 0, updated: 0, errors: [] };
+    const buddies = [];
+    for (const [i, [name, phone, lang, task, clothing, buddy]] of rows.slice(0, 500).entries()) {
+      const existing = byPhone(normPhone(phone));
+      const r = upsertWorker(siteId, { id: existing ? existing.id : undefined, name, phone: phone || '', lang, workload: task, clothing, channel: phone ? undefined : 'crew' }, u.name);
+      if (r.error) { out.errors.push(`line ${i + 1}: ${r.error}`); continue; }
+      if (existing) out.updated++; else out.added++;
+      if (buddy) buddies.push([r.worker.id, buddy]);
+    }
+    for (const [wid, bname] of buddies) {
+      const bud = Object.values(users).find((x) => x.role === 'worker' && x.siteId === siteId && x.name.toLowerCase() === bname.toLowerCase());
+      if (bud) upsertWorker(siteId, { id: wid, buddy: bud.id }, u.name); else out.errors.push(`buddy not found: ${bname}`);
+    }
+    return send(res, 200, out);
+  }
+  if (p === '/api/admin/shift' && m === 'POST') {
+    need(u, 'supervisor');
+    const b = await body(req);
+    const w = users[b.workerId];
+    if (!w || w.role !== 'worker' || w.siteId !== u.siteId) return send(res, 404, { error: 'no such worker' });
+    if (b.on && !shifts.has(w.id)) startShift(w, {});
+    if (!b.on && shifts.has(w.id)) endShift(w.id, `${u.name} (foreman)`);
+    return send(res, 200, { onShift: shifts.has(w.id) });
+  }
   // Foreman's crew check: one tap after walking the crew counts as each ticked worker's check-in (and rest).
   if (p === '/api/crew/check' && m === 'POST') {
     need(u, 'supervisor');
@@ -770,11 +948,12 @@ async function api(req, res, url) {
   if (p === '/api/sms/inbound' && m === 'POST') {
     if (!DEMO && (!process.env.SMS_SECRET || req.headers['x-sms-secret'] !== process.env.SMS_SECRET)) return send(res, 403, { error: 'bad gateway secret' });
     const b = await body(req);
-    const from = String(b.From || b.from || '');
+    const raw = String(b.From || b.from || '');
+    const from = raw.replace(/^whatsapp:/i, '');
     const text = String(b.Body || b.body || '').trim();
-    const w = Object.values(users).find((x) => x.phone && x.phone === from);
+    const w = Object.values(users).find((x) => x.phone && (x.phone === from || (normPhone(from) && normPhone(x.phone) === normPhone(from))));
     if (!w) return send(res, 404, { error: 'unknown number' });
-    outbox.push({ phone: from, text: text.slice(0, 160), at: now(), dir: 'in' });
+    outbox.push({ phone: w.phone, text: text.slice(0, 160), at: now(), dir: 'in', channel: /^whatsapp:/i.test(raw) ? 'whatsapp' : 'sms' });
     const L = w.lang;
     const cmd = text.toUpperCase();
     const sh = shifts.get(w.id);
@@ -785,6 +964,32 @@ async function api(req, res, url) {
     else if (cmd === '2') { recordCheckin(sh, 'unwell', [], `${w.name} (SMS)`); sendSms(w.id, `HeatMitra: ${tr(L, 'restTitle')}. ${tr(L, 'restBody')}`); }
     else sendSms(w.id, `HeatMitra: ${tr(L, 'smsReply')}`);
     return send(res, 200, { ok: true });
+  }
+  // Voice gateway: the call's TwiML, and the keypad answer.
+  const voiceAuth = () => DEMO || (process.env.SMS_SECRET && url.searchParams.get('k') === process.env.SMS_SECRET);
+  if (p === '/api/voice/twiml' && (m === 'GET' || m === 'POST')) {
+    if (!voiceAuth()) return send(res, 403, { error: 'bad gateway secret' });
+    const w = users[url.searchParams.get('w')];
+    if (!w) return send(res, 404, { error: 'unknown worker' });
+    const a = openAlertFor(w.id);
+    res.writeHead(200, { 'content-type': 'text/xml; charset=utf-8' });
+    return res.end(twimlFor(w, `${a ? promptText(w.id, a) : tr(w.lang, 'areyouok')} ${tr(w.lang, 'voicePress')}`));
+  }
+  if (p === '/api/voice/gather' && m === 'POST') {
+    if (!voiceAuth()) return send(res, 403, { error: 'bad gateway secret' });
+    const w = users[url.searchParams.get('w')];
+    if (!w) return send(res, 404, { error: 'unknown worker' });
+    const b = await body(req);
+    const digit = String(b.Digits || b.digits || '').slice(0, 1);
+    const sh = shifts.get(w.id);
+    const L = w.lang;
+    outbox.push({ phone: w.phone, text: `⌨ ${digit || '-'}`, at: now(), dir: 'in', channel: 'voice' });
+    let reply = tr(L, 'voicePress');
+    if (sh && digit === '1') { ackRest(sh); recordCheckin(sh, 'ok', [], `${w.name} (call)`); reply = `✓ ${tr(L, `a_${sh.band || 'green'}`)}`; }
+    else if (sh && digit === '2') { recordCheckin(sh, 'unwell', [], `${w.name} (call)`); reply = `${tr(L, 'restTitle')}. ${tr(L, 'restBody')}`; }
+    outbox.push({ phone: w.phone, text: `📞 ${reply}`, at: now(), dir: 'out', channel: 'voice' });
+    res.writeHead(200, { 'content-type': 'text/xml; charset=utf-8' });
+    return res.end(`<?xml version="1.0" encoding="UTF-8"?><Response><Say language="${VOICE_LANG[L] || 'en-GB'}">${xmlEsc(reply)}</Say></Response>`);
   }
   if (DEMO && p === '/api/sms/thread' && m === 'GET') {
     need(u, 'supervisor');
@@ -901,7 +1106,7 @@ async function api(req, res, url) {
   // ----- demo helpers -----
   if (DEMO && p === '/api/demo/crew' && m === 'POST') {
     need(u, 'supervisor');
-    seed.users.filter((w) => w.role === 'worker' && w.channel !== 'sms' && w.siteId === u.siteId && !shifts.has(w.id)).forEach((w) => startShift(w, {}, true));
+    seed.users.filter((w) => w.role === 'worker' && !noApp(users[w.id]) && w.siteId === u.siteId && !shifts.has(w.id)).forEach((w) => startShift(w, {}, true));
     return send(res, 200, { ok: true });
   }
   const tst = p.match(/^\/api\/demo\/notify\/(\w+)$/);
@@ -942,8 +1147,11 @@ function snapshot() {
     v: 1, at: now(),
     shifts: [...shifts.values()], alerts, checkins, audit, outbox,
     consent: [...consent], tokens: [...tokens].map(([t, u]) => [t, u.id]),
-    workers: Object.fromEntries(Object.values(users).filter((u) => u.role === 'worker').map((u) => [u.id, { heatDates: u.heatDates, personal: u.personal || null }])),
-    pushSubs: [...pushSubs], latestNotice: [...latestNotice], restTotals, noticesSent,
+    workers: Object.fromEntries(Object.values(users).filter((u) => u.role === 'worker').map((u) => [u.id, {
+      heatDates: u.heatDates, personal: u.personal || null, added: Boolean(u.added), heatLog: u.heatLog || null,
+      ...Object.fromEntries(ROSTER_FIELDS.map((k) => [k, u[k] ?? null])),
+    }])),
+    pushSubs: [...pushSubs], latestNotice: [...latestNotice], restTotals, noticesSent, reports: reports.slice(-2000),
     sites: Object.fromEntries(Object.values(sites).map((x) => [x.id, { replayDate: x.replayDate, calib: x.calib, middayBan: x.middayBan, readiness: x.readiness, coolSpot: x.coolSpot, audits: x.audits }])),
   };
 }
@@ -959,11 +1167,16 @@ function restore() {
   outbox.push(...(j.outbox || []));
   for (const [k, v] of j.consent || []) consent.set(k, v);
   for (const [tok, id] of j.tokens || []) if (users[id]) tokens.set(tok, users[id]);
-  for (const [id, w] of Object.entries(j.workers || {})) if (users[id]) Object.assign(users[id], w);
+  for (const [wid, w] of Object.entries(j.workers || {})) {
+    if (!users[wid] && w.added && sites[w.siteId]) users[wid] = { id: wid, role: 'worker' }; // imported by a supervisor
+    if (!users[wid]) continue;
+    for (const [k, v] of Object.entries(w)) if (v !== null) users[wid][k] = v; else if (ROSTER_FIELDS.includes(k)) delete users[wid][k];
+  }
   for (const [k, v] of j.pushSubs || []) pushSubs.set(k, v);
   for (const [k, v] of j.latestNotice || []) latestNotice.set(k, v);
   Object.assign(restTotals, j.restTotals || {});
   noticesSent = j.noticesSent || 0;
+  reports.push(...(j.reports || []));
   for (const [id, v] of Object.entries(j.sites || {})) if (sites[id]) Object.assign(sites[id], v);
   log('system', 'state_restored', `${shifts.size} shifts, ${alerts.length} alerts, saved ${Math.round((t - j.at) / 1000)} s ago`);
 }

@@ -20,7 +20,7 @@ const CORE = [
   'hyd', 'hydAsk', 'hyd_ok', 'hyd_mid', 'hyd_bad', 'hydNote', 'restNow', 'restBtn', 'resting', 'nextRest',
   'exAsk', 'ex_easy', 'ex_hard', 'ex_veryhard', 'exRest',
   'buddyTitle', 'buddyBody', 'buddyOk', 'buddyHelp', 'yourBuddy', 'smsReply', 'smsStart', 'smsEnd',
-  'newWorker', 'returning', 'expBar', 'capUsed', 'dust_y', 'dust_o', 'dust_r', 'uvHigh', 'coolVest', 'coolSpot', 'personal', 'pushOn', 'pushOk', 'pushNo', 'pushSpam', 'more', 'change', 'cfts', 'scanStation', 'stationCode', 'verified', 'visitOnly', 'badCode', 'cup', 'cups',
+  'newWorker', 'returning', 'expBar', 'capUsed', 'dust_y', 'dust_o', 'dust_r', 'uvHigh', 'coolVest', 'coolSpot', 'personal', 'pushOn', 'pushOk', 'pushNo', 'pushSpam', 'more', 'change', 'joinTitle', 'phoneLbl', 'sendCode', 'codeLbl', 'signIn', 'notOnRoster', 'wrongCode', 'codeSent', 'voicePress', 'doseLine', 'kidney', 'reportBtn', 'reportTitle', 'r_water', 'r_shade', 'r_ban', 'r_rest', 'r_cool', 'r_other', 'reportThanks', 'cfts', 'scanStation', 'stationCode', 'verified', 'visitOnly', 'badCode', 'cup', 'cups',
 ];
 const holes = (s) => (s.match(/\{\w+\}/g) || []).sort().join(',');
 

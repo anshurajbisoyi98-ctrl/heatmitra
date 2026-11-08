@@ -89,7 +89,8 @@
       "workload": "heavy",
       "clothing": "standard",
       "daysOnSite": 30,
-      "buddy": "w2"
+      "buddy": "w2",
+      "phone": "+971500000101"
     },
     {
       "id": "w2",
@@ -101,7 +102,8 @@
       "clothing": "standard",
       "daysOnSite": 2,
       "buddy": "w1",
-      "awayDays": 1
+      "awayDays": 1,
+      "phone": "+971500000102"
     },
     {
       "id": "w3",
@@ -112,7 +114,8 @@
       "workload": "heavy",
       "clothing": "doublelayer",
       "daysOnSite": 20,
-      "buddy": "w4"
+      "buddy": "w4",
+      "phone": "+971500000103"
     },
     {
       "id": "w4",
@@ -123,7 +126,8 @@
       "workload": "light",
       "clothing": "standard",
       "daysOnSite": 60,
-      "buddy": "w3"
+      "buddy": "w3",
+      "phone": "+971500000104"
     },
     {
       "id": "w5",
@@ -135,7 +139,8 @@
       "clothing": "standard",
       "daysOnSite": 40,
       "buddy": "w6",
-      "awayDays": 12
+      "awayDays": 12,
+      "phone": "+971500000105"
     },
     {
       "id": "w6",
@@ -146,7 +151,8 @@
       "workload": "moderate",
       "clothing": "polyolefin",
       "daysOnSite": 0,
-      "buddy": "w5"
+      "buddy": "w5",
+      "phone": "+971500000106"
     },
     {
       "id": "w7",
@@ -157,7 +163,8 @@
       "workload": "heavy",
       "clothing": "standard",
       "daysOnSite": 45,
-      "buddy": "w8"
+      "buddy": "w8",
+      "phone": "+971500000107"
     },
     {
       "id": "w8",
@@ -168,7 +175,8 @@
       "workload": "moderate",
       "clothing": "standard",
       "daysOnSite": 14,
-      "buddy": "w7"
+      "buddy": "w7",
+      "phone": "+971500000108"
     },
     {
       "id": "w9",
@@ -181,6 +189,17 @@
       "daysOnSite": 20,
       "channel": "sms",
       "phone": "DEMO-0009"
+    },
+    {
+      "id": "w10",
+      "role": "worker",
+      "name": "Rajesh Yadav",
+      "lang": "hi",
+      "siteId": "mussafah",
+      "workload": "heavy",
+      "clothing": "standard",
+      "daysOnSite": 25,
+      "channel": "crew"
     },
     {
       "id": "s1",
